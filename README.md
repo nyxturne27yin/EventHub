@@ -1,60 +1,89 @@
 # EventHub
 
-## Project Overview
+### Centralized University Event Management Platform
 
-EventHub is a university software engineering project to build a centralized platform for discovering and managing university events.
+EventHub is a web application project to bring university event announcements and registrations into one place. Students can discover events and manage their registrations, organizers can publish and manage events, and administrators can oversee users and access.
 
-## Project Status
+## Project Goals
 
-Sprint 1 is in progress. The project structure and Git workflow are being established. Application features are planned and are not yet implemented.
-
-## Planned User Roles
-
-Student, Organizer, and Admin.
+- Centralize university event information.
+- Help students browse, search, filter, and view event details.
+- Support event registration with deadline, capacity, and duplicate-registration checks.
+- Let authorized organizers manage events and participants.
+- Provide role-based access for students, organizers, and administrators.
+- Support registration confirmations, event updates, and registered-event tracking.
 
 ## Planned Features
 
-User accounts and role-based access; event creation and discovery; event registration; capacity and deadline handling; notifications; and administration tools.
+The requirements report describes the intended product scope. These features are planned; check the project board for implementation progress.
 
-## Planned Technology Stack
+### Core platform
 
-Python, FastAPI, PostgreSQL, SQLAlchemy, HTML, CSS, JavaScript, and Bootstrap.
+- Account registration and login
+- Student, Organizer, and Administrator roles
+- Event creation, editing, cancellation, discovery, search, and filtering
+- Event registration and cancellation
+- Registration deadline, capacity, and duplicate-registration checks
+- Notifications, registration confirmations, and event tracking
+- Administrative user and permission management
 
-## Project Structure
+### Certificate backlog
 
-- `backend/` — backend code; setup begins in EV-3.
-- `frontend/` — user interface files.
-- `.gitignore` — excludes local environments, generated files, and secrets.
+The supplied Jira snapshot lists these certificate stories as To Do. The requirements report describes digital certificates and QR-based verification as future enhancements beyond the core scope.
 
-## Environment Setup
+- Generate digital certificates with unique IDs and QR codes
+- Add a certificate folder to student profiles
+- Organize certificates into Academic and Research categories
+- Verify certificates
 
-Create a local Python virtual environment from the repository root with `py -m venv .venv`. In PowerShell, activate it with `.\.venv\Scripts\Activate.ps1`. Do not commit `.venv`. A dependency list will be added when backend dependencies are established.
+## User Roles
 
-## Configuration and Secrets
+- **Student** — discovers events and manages event registrations.
+- **Organizer** — publishes and manages events and participants.
+- **Administrator** — oversees users, access, and platform activity.
 
-Keep local credentials in an untracked `.env` file. Never commit passwords, database credentials, or signing keys. A safe `.env.example` template can be added when configuration is introduced.
+## Technology Plan
 
-## Running the Project
+| Area | Planned technology |
+|---|---|
+| Backend | Python, FastAPI |
+| Frontend | HTML5, CSS3, JavaScript, Bootstrap |
+| Database | PostgreSQL |
+| Database access | SQLAlchemy ORM |
+| Authentication and authorization | JWT, password hashing, role-based access control |
+| Deployment target | Render |
+| Version control | Git and GitHub |
 
-The application is not runnable yet. FastAPI setup and run instructions will be added in EV-3.
+## Proposed Architecture
 
-## API Documentation and Database
+The requirements report proposes a layered client-server web application. The team will confirm and develop the architecture under EV-7.
 
-FastAPI documentation is planned after the API is implemented. PostgreSQL setup is EV-5; SQLAlchemy ORM work is assigned to EV-6.
+1. **Presentation:** Browser interface for students, organizers, and administrators.
+2. **Application and business logic:** FastAPI endpoints, validation, authentication, and event workflows.
+3. **Data access:** SQLAlchemy sessions, queries, and relationships.
+4. **Database:** PostgreSQL storage for users, events, registrations, categories, and notifications.
+5. **Security:** JWT authentication, password hashing, and role-based authorization.
 
-## Testing
 
-Testing setup will be documented when the backend is established.
+## Current Repository Structure
 
-## Git Workflow
+```text
+EventHub/
+├── backend/
+│   └── README.md
+├── frontend/
+│   └── README.md
+├── .gitignore
+└── README.md
+```
 
-Develop each Jira task on its own feature branch and submit a pull request to `main`. Include the Jira ID in branch names, commit messages, and pull request titles or descriptions.
-
-Example branch: `feature/EV-2-project-structure`
+The FastAPI application entry point, dependency manifest, and run instructions will be added during backend setup.
 
 ## Team
 
-- Tanisha — EV-2 project structure, EV-3 FastAPI backend, EV-5 PostgreSQL setup
-- Adita — EV-4 frontend, EV-17 user registration form
-- Riya — EV-6 SQLAlchemy ORM, EV-7 modular system architecture
-- Fahmida — EV-18 registration API, EV-19 user information validation
+| Member | Project role |
+|---|---|
+| Nowrin Akhter Riya | Project Manager |
+| Tashnin Khan Tanisha | Lead |
+| Fahmida Tabassum | QA Lead |
+| Afzalun Nesa Adita | Reporting Lead |
