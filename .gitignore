@@ -1,0 +1,23 @@
+# Python virtual environment and bytecode
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+
+# Operating system files
+.DS_Store
+Thumbs.db
