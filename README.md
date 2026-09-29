@@ -70,15 +70,29 @@ The requirements report proposes a layered client-server web application. The te
 ```text
 EventHub/
 ├── backend/
-│   └── README.md
+│   ├── app/
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── README.md
+│   └── requirements.txt
 ├── frontend/
 │   └── README.md
 ├── .gitignore
 └── README.md
 ```
 
-The FastAPI application entry point, dependency manifest, and run instructions will be added during backend setup.
+## Running the Project
 
+From the repository root, run these commands in PowerShell:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r backend\requirements.txt
+python -m uvicorn app.main:app --app-dir backend --reload
+```
+
+The health check is available at `http://127.0.0.1:8000/health`. Interactive API documentation is available at `/docs` and `/redoc` while the server is running.
 ## Team
 
 | Member | Project role |
