@@ -1,0 +1,28 @@
+/* EventHub Global Styles */
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+}
+
+main {
+    min-height: 70vh;
+}
+
+.navbar-brand {
+    letter-spacing: 0.3px;
+}
+
+section {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.alert {
+    margin-top: 1rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
