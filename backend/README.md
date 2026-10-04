@@ -6,7 +6,9 @@ The backend is a FastAPI application. Its current endpoint is a health check.
 
 Implemented: `GET /health`
 
-Not yet implemented: event and user APIs, authentication, and database connection.
+The app checks its PostgreSQL connection during startup by running `SELECT 1` through SQLAlchemy.
+
+Not yet implemented: event and user APIs, authentication, database tables, or event/user data persistence.
 
 ## Setup
 
@@ -43,4 +45,15 @@ The local development database uses PostgreSQL with these settings:
 
 Copy the root `.env.example` file to `.env` and set the local database password in `.env`. The `.env` file is ignored by Git and must not be committed.
 
-The backend dependencies include Psycopg, the PostgreSQL driver for Python. The database login was verified locally. The FastAPI application does not yet read the `.env` settings or use the database; application-level database integration will be added separately.
+
+
+## Render Web Service Setup
+
+Configure a Python web service for the EventHub backend with:
+
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- CORS origins: set `CORS_ORIGINS` in Render to the exact frontend origin or comma-separated origins allowed to call the API from a browser. The local defaults are `http://localhost:5500` and `http://127.0.0.1:5500`.
+
+Set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in the Render service environment. Use the values from the Render PostgreSQL database, not the local `.env` values. Keep the production password in Render; never commit it to GitHub.
