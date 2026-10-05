@@ -1,29 +1,27 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr
 
 
 class RegisterRequest(BaseModel):
-    name: str = Field(min_length=2, max_length=100)
+    full_name: str
     email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+    password: str
 
-    @field_validator("password")
-    @classmethod
-    def validate_password_strength(cls, password: str) -> str:
-        if not any(char.isupper() for char in password):
-            raise ValueError("Password must contain at least one uppercase letter")
 
-        if not any(char.islower() for char in password):
-            raise ValueError("Password must contain at least one lowercase letter")
-
-        if not any(char.isdigit() for char in password):
-            raise ValueError("Password must contain at least one number")
-
-        return password
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
 class UserResponse(BaseModel):
     id: int
-    name: str
-    email: str
+    full_name: str
+    email: EmailStr
+    role_id: int
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
