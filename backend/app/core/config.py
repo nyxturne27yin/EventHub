@@ -1,15 +1,13 @@
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
+load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parents[3]
-load_dotenv(BASE_DIR / ".env")
+JWT_SECRET_KEY = os.getenv(
+    "JWT_SECRET_KEY",
+    "eventhub-development-secret-change-this"
+)
 
-
-DB_HOST = os.environ["DB_HOST"]
-DB_PORT = int(os.environ["DB_PORT"])
-DB_NAME = os.environ["DB_NAME"]
-DB_USER = os.environ["DB_USER"]
-DB_PASSWORD = os.environ["DB_PASSWORD"]
+JWT_ALGORITHM = "HS256"
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 60

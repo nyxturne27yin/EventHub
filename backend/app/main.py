@@ -8,9 +8,11 @@ from sqlalchemy import text
 
 from app.database.database import engine
 from app.routers.health import router as health_router
+from app.auth.router import router as auth_router
 
 
 default_cors_origins = "http://localhost:5500,http://127.0.0.1:5500"
+
 cors_origins = [
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", default_cors_origins).split(",")
@@ -20,8 +22,8 @@ cors_origins = [
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    with engine.connect() as connection:
-        connection.execute(text("SELECT 1")).scalar_one()
+    async with engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))
     yield
 
 
@@ -32,6 +34,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -39,4 +42,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+
 app.include_router(health_router)
+app.include_router(auth_router)
