@@ -21,3 +21,7 @@ dist/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
