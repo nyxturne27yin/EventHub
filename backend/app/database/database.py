@@ -1,27 +1,36 @@
-from sqlalchemy import URL, create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+import os
+from collections.abc import AsyncGenerator
 
-from app.core.config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
-
-
-DATABASE_URL = URL.create(
-    drivername="postgresql+psycopg",
-    username=DB_USER,
-    password=DB_PASSWORD,
-    host=DB_HOST,
-    port=DB_PORT,
-    database=DB_NAME,
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
 )
+from sqlalchemy.orm import DeclarativeBase
 
-
-engine = create_engine(DATABASE_URL)
-
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    expire_on_commit=False,
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:123456riya@localhost:5432/eventhub",
 )
 
 
 class Base(DeclarativeBase):
     pass
+
+
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+)
+
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session
