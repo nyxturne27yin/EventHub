@@ -89,4 +89,5 @@ async def get_me(
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
+        "role": current_user.role.name if current_user.role else None,
     }
