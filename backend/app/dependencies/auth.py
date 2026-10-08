@@ -35,15 +35,17 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
 
+        user_id = int(user_id)
+
     except (JWTError, ValueError, TypeError):
         raise credentials_exception
 
     result = await db.execute(
+   
         select(User)
         .options(selectinload(User.role))
-        .where(User.id == int(user_id))
+        .where(User.id == user_id)
     )
-
     user = result.scalar_one_or_none()
 
     if user is None:
