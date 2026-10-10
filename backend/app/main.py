@@ -1,3 +1,4 @@
+
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -9,6 +10,7 @@ from sqlalchemy import text
 from app.database.database import engine
 from app.routers.health import router as health_router
 from app.auth.router import router as auth_router
+from app.routers.events import router as events_router
 
 
 default_cors_origins = "http://localhost:5500,http://127.0.0.1:5500"
@@ -45,3 +47,4 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(events_router)

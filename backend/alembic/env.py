@@ -6,9 +6,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.database.database import DATABASE_URL, Base
-from app.models import Role, User
-
-
+from app.models import Event, Role, User
 # Alembic Config object
 config = context.config
 
