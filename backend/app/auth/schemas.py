@@ -2,6 +2,7 @@ import re
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     EmailStr,
     field_validator,
     model_validator,
@@ -86,8 +87,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenResponse(BaseModel):
