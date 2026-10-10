@@ -230,3 +230,17 @@ def test_cancelled_event_cannot_be_updated(setup_api):
 
     assert response.status_code == 409
     assert state["event"].title == "Original Event"
+
+def test_title_update_is_allowed_for_past_event(setup_api):
+    client, state = setup_api
+    state["event"].event_date = date.today() - timedelta(days=1)
+
+    response = client.patch(
+        "/events/10",
+        json={"title": "Updated Past Event"},
+    )
+
+    assert response.status_code == 200
+    assert state["event"].title == "Updated Past Event"
+    assert state["event"].event_date == date.today() - timedelta(days=1)
+

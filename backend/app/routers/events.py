@@ -78,13 +78,13 @@ async def update_event(
                 detail=f"{field} cannot be empty",
             )
 
-    if values["event_date"] < date.today():
+    if "event_date" in changes and values["event_date"] < date.today():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Event date cannot be in the past",
         )
 
-    if values["end_time"] <= values["start_time"]:
+    if ("start_time" in changes or "end_time" in changes) and values["end_time"] <= values["start_time"]:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="End time must be after start time",
@@ -102,7 +102,7 @@ async def update_event(
             detail="Registration deadline must be a valid local date and time",
         )
 
-    if deadline >= event_start:
+    if ("event_date" in changes or "start_time" in changes or "registration_deadline" in changes) and deadline >= event_start:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Registration deadline must be before the event starts",
