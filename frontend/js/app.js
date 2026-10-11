@@ -1,92 +1,88 @@
-// EventHub API configuration
-const API_BASE_URL = "http://127.0.0.1:8000";
+﻿const API_BASE_URL = "http://127.0.0.1:8000";
 
-// Make a GET request to an EventHub API endpoint
-async function getFromApi(endpoint) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+const form = document.getElementById("registrationForm");
+const errorBox = document.getElementById("registrationError");
+const successBox = document.getElementById("registrationSuccess");
 
-    if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-    }
-
-    return response.json();
-}
-
-// Registration form validation
-const registrationForm = document.getElementById("registrationForm");
-
-if (registrationForm) {
-    registrationForm.addEventListener("submit", function (event) {
+if (form && errorBox && successBox) {
+    form.addEventListener("submit", async function (event) {
         event.preventDefault();
 
-        const fullName = document.getElementById("fullName");
-        const email = document.getElementById("email");
-        const password = document.getElementById("password");
-        const confirmPassword = document.getElementById("confirmPassword");
+        errorBox.textContent = "";
+        errorBox.classList.remove("d-none");
+        errorBox.style.display = "none";
+        successBox.textContent = "";
+        successBox.classList.add("d-none");
 
-        const errorMessage = document.getElementById("registrationError");
-        const successMessage = document.getElementById("registrationSuccess");
+        const fullName = document.getElementById("fullName").value.trim();
+        const email = document.getElementById("email").value.trim().toLowerCase();
+        const password = document.getElementById("password").value;
+        const confirmPassword = document.getElementById("confirmPassword").value;
 
-        // Reset previous validation state
-        registrationForm.classList.remove("was-validated");
-        errorMessage.classList.add("d-none");
-        successMessage.classList.add("d-none");
-
-        let isValid = true;
-
-        // Full name validation
-        if (!fullName.value.trim()) {
-            fullName.classList.add("is-invalid");
-            isValid = false;
-        } else {
-            fullName.classList.remove("is-invalid");
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.remove("d-none");
+            errorBox.style.display = "block";
         }
 
-        // Email validation
-        const emailPattern = /^[^\s@]+@uap-bd\.edu$/i;
-
-        if (!emailPattern.test(email.value.trim())) {
-            email.classList.add("is-invalid");
-            isValid = false;
-        } else {
-            email.classList.remove("is-invalid");
-        }
-
-        // Password validation
-        const passwordPattern =
-            /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{8,128}$/;
-
-        if (!passwordPattern.test(password.value)) {
-            password.classList.add("is-invalid");
-            isValid = false;
-        } else {
-            password.classList.remove("is-invalid");
-        }
-
-        // Confirm password validation
-        if (
-            !confirmPassword.value ||
-            confirmPassword.value !== password.value
-        ) {
-            confirmPassword.classList.add("is-invalid");
-            isValid = false;
-        } else {
-            confirmPassword.classList.remove("is-invalid");
-        }
-
-        // Show validation result
-        if (!isValid) {
-            errorMessage.textContent =
-                "Please correct the highlighted fields and try again.";
-            errorMessage.classList.remove("d-none");
+        if (!fullName || !/^[0-9]{8,}@uap-bd\.edu$/i.test(email)) {
+            showError("Enter your name and a valid UAP email.");
             return;
         }
 
-        // Temporary success feedback
-        successMessage.textContent =
-            "Registration information is valid and ready to be submitted.";
-        successMessage.classList.remove("d-none");
-    });
-}
+        if (password.length < 8 || !/[A-Za-z]/.test(password) ||
+            !/\d/.test(password) || !/[@$!%*?&]/.test(password)) {
+            showError("Password needs 8 characters, a letter, a number and a symbol.");
+            return;
+        }
 
-console.log("EventHub frontend JavaScript loaded successfully.");
+        if (password !== confirmPassword) {
+            showError("Passwords do not match.");
+            return;
+        }
+
+        const button = form.querySelector('button[type="submit"]');
+        if (button) {
+            button.disabled = true;
+            button.textContent = "Creating Account...";
+        }
+
+        try {
+            const response = await fetch(API_BASE_URL + "/auth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({
+                    full_name: fullName,
+                    email: email,
+                    password: password,
+                    confirm_password: confirmPassword
+                })
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                const detail = data.detail;
+                throw new Error(
+                    Array.isArray(detail)
+                        ? detail.map(item => item.msg).join(", ")
+                        : (detail || "Registration failed.")
+                );
+            }
+
+            successBox.textContent = "Registration successful! Your account has been created.";
+            successBox.classList.remove("d-none");
+            successBox.style.display = "block";
+        } catch (error) {
+            showError(error.message || "Cannot connect to backend. Check that it is running.");
+            console.error("Registration error:", error);
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = "Create Account";
+            }
+        }
+    });
+} else {
+    console.error("Registration form or message boxes are missing from register.html.");
+}
