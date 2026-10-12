@@ -244,3 +244,65 @@ def test_title_update_is_allowed_for_past_event(setup_api):
     assert state["event"].title == "Updated Past Event"
     assert state["event"].event_date == date.today() - timedelta(days=1)
 
+
+
+def test_organizer_can_cancel_own_event(setup_api):
+    client, state = setup_api
+
+    response = client.post("/events/10/cancel")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert state["event"].status == "cancelled"
+    assert state["event"].id == 10
+    assert state["db"].committed is True
+    assert state["db"].refreshed is True
+
+
+def test_student_cannot_cancel_event(setup_api):
+    client, state = setup_api
+    state["user"] = make_user(role_name="student")
+
+    response = client.post("/events/10/cancel")
+
+    assert response.status_code == 403
+    assert state["event"].status == "draft"
+
+
+def test_organizer_cannot_cancel_another_organizers_event(setup_api):
+    client, state = setup_api
+    state["event"].organizer_id = 99
+
+    response = client.post("/events/10/cancel")
+
+    assert response.status_code == 403
+    assert state["event"].status == "draft"
+
+
+def test_cancelling_nonexistent_event_returns_404(setup_api):
+    client, state = setup_api
+    state["event"] = None
+
+    response = client.post("/events/999/cancel")
+
+    assert response.status_code == 404
+
+
+def test_already_cancelled_event_returns_409(setup_api):
+    client, state = setup_api
+    state["event"].status = "cancelled"
+
+    response = client.post("/events/10/cancel")
+
+    assert response.status_code == 409
+    assert state["event"].status == "cancelled"
+    assert state["db"].committed is False
+
+
+def test_invalid_cancel_event_id_is_rejected(setup_api):
+    client, state = setup_api
+
+    response = client.post("/events/0/cancel")
+
+    assert response.status_code == 422
+    assert state["event"].status == "draft"

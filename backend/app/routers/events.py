@@ -154,3 +154,52 @@ async def update_event(
             "updated_at": event.updated_at,
         },
     }
+
+@router.post("/{event_id}/cancel")
+async def cancel_event(
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Only organizers can cancel events.
+    if current_user.role is None or current_user.role.name.lower() != "organizer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organizers can cancel events",
+        )
+
+    result = await db.execute(
+        select(Event).where(Event.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    # Organizers can cancel only their own events.
+    if event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only cancel your own events",
+        )
+
+    if event.status.lower() == "cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Event is already cancelled",
+        )
+
+    event.status = "cancelled"
+    event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    await db.commit()
+    await db.refresh(event)
+
+    return {
+        "message": "Event cancelled successfully",
+        "event_id": event.id,
+        "status": event.status,
+    }
