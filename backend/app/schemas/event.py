@@ -83,3 +83,14 @@ class EventUpdateRequest(BaseModel):
                 raise ValueError(f"{field} cannot be null")
 
         return self
+
+class EventSearchItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    category: str
+    event_date: date
+    start_time: time
+    mode: str
