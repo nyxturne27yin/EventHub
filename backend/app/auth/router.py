@@ -11,6 +11,7 @@ from app.auth.schemas import (
 from app.auth.utils import hash_password, verify_password, create_access_token
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user
+from app.models.role import Role
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -32,11 +33,22 @@ async def register(
             detail="Email already registered",
         )
 
+    role_result = await db.execute(
+        select(Role).where(Role.name == "student")
+    )
+    student_role = role_result.scalar_one_or_none()
+
+    if student_role is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Student role is not configured",
+        )
+
     user = User(
         name=request.full_name,
         email=request.email,
         password_hash=hash_password(request.password),
-        role_id=1,
+        role_id=student_role.id,
         is_active=True,
     )
 
