@@ -1,17 +1,41 @@
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user, require_role
 from app.models.event import Event
 from app.models.user import User
-from app.schemas.event import EventUpdateRequest
+from app.schemas.event import EventSearchItem, EventUpdateRequest
 
 
 router = APIRouter(prefix="/events", tags=["Events"])
+@router.get("/", response_model=list[EventSearchItem])
+async def list_events(
+    search: str | None = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+):
+    statement = select(Event).where(Event.status == "published")
+    search_text = search.strip() if search else ""
+
+    if search_text:
+        statement = statement.where(
+            or_(
+                Event.title.icontains(search_text, autoescape=True),
+                Event.description.icontains(search_text, autoescape=True),
+                Event.category.icontains(search_text, autoescape=True),
+            )
+        )
+
+    statement = statement.order_by(
+        Event.event_date,
+        Event.start_time,
+        Event.id,
+    )
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.patch("/{event_id}")
