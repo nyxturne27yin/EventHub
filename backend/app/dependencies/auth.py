@@ -51,4 +51,44 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
     return user
+
+
+def require_role(*allowed_roles: str):
+    allowed_role_names = {
+        role.strip().lower()
+        for role in allowed_roles
+    }
+
+    async def role_checker(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        if not current_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive",
+            )
+
+        if current_user.role is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
+        user_role = current_user.role.name.strip().lower()
+
+        if user_role not in allowed_role_names:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
+        return current_user
+
+    return role_checker

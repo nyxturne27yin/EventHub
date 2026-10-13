@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.auth.utils import hash_password, verify_password
 from app.database.database import get_db
 from app.main import app
+from app.models.role import Role
 from app.models.user import User
 
 
@@ -24,6 +25,11 @@ class FakeDB:
         self.refreshed = False
 
     async def execute(self, query):
+        entity = query.column_descriptions[0]["entity"]
+
+        if entity is Role:
+            return FakeResult(Role(id=1, name="student"))
+
         return FakeResult(self.existing_user)
 
     def add(self, instance):
