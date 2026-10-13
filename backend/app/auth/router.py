@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.schemas import RegisterRequest, LoginRequest, TokenResponse
+from app.auth.schemas import (
+    RegisterRequest,
+    LoginRequest,
+    TokenResponse,
+    ProfileUpdateRequest,
+)
 from app.auth.utils import hash_password, verify_password, create_access_token
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user
@@ -71,9 +76,7 @@ async def login(
             detail="User account is inactive",
         )
 
-    access_token = create_access_token(
-        {"sub": str(user.id)}
-    )
+    access_token = create_access_token({"sub": str(user.id)})
 
     return {
         "access_token": access_token,
@@ -85,6 +88,40 @@ async def login(
 async def get_me(
     current_user: User = Depends(get_current_user),
 ):
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role.name if current_user.role else None,
+    }
+
+
+@router.put("/me")
+async def update_me(
+    request: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(User).where(
+            User.email == request.email,
+            User.id != current_user.id,
+        )
+    )
+    existing_user = result.scalar_one_or_none()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+
+    current_user.name = request.name
+    current_user.email = request.email
+
+    await db.commit()
+    await db.refresh(current_user)
+
     return {
         "id": current_user.id,
         "name": current_user.name,

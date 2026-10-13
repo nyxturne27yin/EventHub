@@ -26,6 +26,11 @@ class FakeDB:
     async def execute(self, query):
         return FakeResult(self.user)
 
+    async def commit(self):
+        pass
+
+    async def refresh(self, user):
+        pass
 
 def make_user():
     return User(

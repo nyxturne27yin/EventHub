@@ -36,8 +36,6 @@ class RegisterRequest(BaseModel):
         if len(value) > 255:
             raise ValueError("Email must not exceed 255 characters")
 
-        # UAP student email format:
-        # minimum 8 digit registration number + @uap-bd.edu
         if not re.fullmatch(r"[0-9]{8,}@uap-bd\.edu", value):
             raise ValueError(
                 "Email must contain a valid registration number "
@@ -93,3 +91,37 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str
+    email: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Name is required")
+
+        if len(value) > 100:
+            raise ValueError("Name must not exceed 100 characters")
+
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_profile_email(cls, value):
+        value = value.strip().lower()
+
+        if len(value) > 255:
+            raise ValueError("Email must not exceed 255 characters")
+
+        if not re.fullmatch(r"[0-9]{8,}@uap-bd\.edu", value):
+            raise ValueError(
+                "Email must contain a valid registration number "
+                "followed by @uap-bd.edu"
+            )
+
+        return value
