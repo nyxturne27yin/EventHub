@@ -5,13 +5,74 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
-from app.dependencies.auth import get_current_user, require_role
+from app.dependencies.auth import require_role
 from app.models.event import Event
 from app.models.user import User
-from app.schemas.event import EventSearchItem, EventUpdateRequest
-
+from app.schemas.event import (
+    EventCreateRequest,
+    EventSearchItem,
+    EventUpdateRequest,
+)
 
 router = APIRouter(prefix="/events", tags=["Events"])
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_event(
+    payload: EventCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    if (
+        current_user.role is None
+        or current_user.role.name.lower() != "organizer"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organizers can create events",
+        )
+
+    event = Event(
+        title=payload.title,
+        description=payload.description,
+        category=payload.category,
+        event_date=payload.event_date,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        mode=payload.mode,
+        venue=payload.venue or None,
+        meeting_link=payload.meeting_link or None,
+        capacity=payload.capacity,
+        registration_deadline=payload.registration_deadline,
+        status=payload.status,
+        organizer_id=current_user.id,
+    )
+
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+
+    return {
+        "message": "Event created successfully",
+        "event": {
+            "id": event.id,
+            "title": event.title,
+            "description": event.description,
+            "category": event.category,
+            "event_date": event.event_date,
+            "start_time": event.start_time,
+            "end_time": event.end_time,
+            "mode": event.mode,
+            "venue": event.venue,
+            "meeting_link": event.meeting_link,
+            "capacity": event.capacity,
+            "registration_deadline": event.registration_deadline,
+            "status": event.status,
+            "organizer_id": event.organizer_id,
+        },
+    }
+
+
 @router.get("/", response_model=list[EventSearchItem])
 async def list_events(
     search: str | None = Query(default=None, max_length=100),
@@ -34,6 +95,7 @@ async def list_events(
         Event.start_time,
         Event.id,
     )
+
     result = await db.execute(statement)
     return result.scalars().all()
 
@@ -45,8 +107,10 @@ async def update_event(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("organizer")),
 ):
-    # Only organizers can update events.
-    if current_user.role is None or current_user.role.name.lower() != "organizer":
+    if (
+        current_user.role is None
+        or current_user.role.name.lower() != "organizer"
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only organizers can update events",
@@ -63,7 +127,6 @@ async def update_event(
             detail="Event not found",
         )
 
-    # Organizers can update only their own events.
     if event.organizer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -78,7 +141,6 @@ async def update_event(
 
     changes = payload.model_dump(exclude_unset=True)
 
-    # Validate the final values, including unchanged existing fields.
     values = {
         "title": event.title,
         "description": event.description,
@@ -96,6 +158,7 @@ async def update_event(
 
     for field in ("title", "description", "category"):
         value = values[field]
+
         if value is None or not value.strip():
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -108,7 +171,9 @@ async def update_event(
             detail="Event date cannot be in the past",
         )
 
-    if ("start_time" in changes or "end_time" in changes) and values["end_time"] <= values["start_time"]:
+    if (
+        "start_time" in changes or "end_time" in changes
+    ) and values["end_time"] <= values["start_time"]:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="End time must be after start time",
@@ -126,7 +191,11 @@ async def update_event(
             detail="Registration deadline must be a valid local date and time",
         )
 
-    if ("event_date" in changes or "start_time" in changes or "registration_deadline" in changes) and deadline >= event_start:
+    if (
+        "event_date" in changes
+        or "start_time" in changes
+        or "registration_deadline" in changes
+    ) and deadline >= event_start:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Registration deadline must be before the event starts",
@@ -179,14 +248,17 @@ async def update_event(
         },
     }
 
+
 @router.post("/{event_id}/cancel")
 async def cancel_event(
     event_id: int = Path(gt=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("organizer")),
 ):
-    # Only organizers can cancel events.
-    if current_user.role is None or current_user.role.name.lower() != "organizer":
+    if (
+        current_user.role is None
+        or current_user.role.name.lower() != "organizer"
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only organizers can cancel events",
@@ -203,7 +275,6 @@ async def cancel_event(
             detail="Event not found",
         )
 
-    # Organizers can cancel only their own events.
     if event.organizer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

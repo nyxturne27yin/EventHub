@@ -84,6 +84,85 @@ class EventUpdateRequest(BaseModel):
 
         return self
 
+
+class EventCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1)
+    category: str = Field(min_length=1, max_length=100)
+
+    event_date: date
+    start_time: time
+    end_time: time
+
+    mode: Literal["Online", "Offline"]
+    venue: str | None = Field(default=None, max_length=255)
+    meeting_link: str | None = Field(default=None, max_length=500)
+
+    capacity: StrictInt = Field(gt=0)
+    registration_deadline: datetime
+    status: Literal["draft", "published"] = "draft"
+
+    @field_validator("title", "description", "category")
+    @classmethod
+    def strip_required_text(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("This field cannot be empty")
+        return value
+
+    @field_validator("venue", "meeting_link")
+    @classmethod
+    def strip_optional_text(cls, value):
+        return value.strip() if value is not None else value
+
+    @field_validator("meeting_link")
+    @classmethod
+    def validate_create_meeting_link(cls, value):
+        if value is None or value == "":
+            return value
+
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError(
+                "Meeting link must be a valid HTTP or HTTPS URL"
+            )
+
+        return value
+
+    @model_validator(mode="after")
+    def validate_event(self):
+        if self.event_date < date.today():
+            raise ValueError("Event date cannot be in the past")
+
+        if self.end_time <= self.start_time:
+            raise ValueError("End time must be after start time")
+
+        if self.registration_deadline.tzinfo is not None:
+            raise ValueError(
+                "Registration deadline must be local date and time"
+            )
+
+        event_start = datetime.combine(
+            self.event_date,
+            self.start_time,
+        )
+
+        if self.registration_deadline >= event_start:
+            raise ValueError(
+                "Registration deadline must be before the event starts"
+            )
+
+        if self.mode == "Offline" and not self.venue:
+            raise ValueError("Venue is required for offline events")
+
+        if self.mode == "Online" and not self.meeting_link:
+            raise ValueError("Meeting link is required for online events")
+
+        return self
+
+
 class EventSearchItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

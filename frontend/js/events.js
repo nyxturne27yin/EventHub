@@ -27,22 +27,32 @@ function showEvent(event) {
 
     const title = document.createElement("h3");
     title.className = "h5 card-title";
-    title.textContent = event.title;
+    title.textContent = event.title || "Untitled Event";
 
     const category = document.createElement("p");
     category.className = "text-muted mb-2";
-    category.textContent = event.category;
+    category.textContent = event.category || "General";
 
     const description = document.createElement("p");
     description.className = "card-text";
-    description.textContent = event.description;
+    description.textContent = event.description || "No description available.";
 
     const dateAndTime = document.createElement("p");
-    dateAndTime.className = "small mb-0";
+    dateAndTime.className = "small";
     dateAndTime.textContent =
-        `${event.event_date} at ${event.start_time} · ${event.mode}`;
+        `Date: ${event.event_date || "Not specified"} | Start: ${event.start_time || "Not specified"} | End: ${event.end_time || "Not specified"}`;
 
-    cardBody.append(title, category, description, dateAndTime);
+    const mode = document.createElement("p");
+    mode.className = "small";
+    mode.textContent = `Mode: ${event.mode || "Not specified"}`;
+
+    const location = document.createElement("p");
+    location.className = "small mb-0";
+    location.textContent = event.mode === "Online"
+        ? `Meeting link: ${event.meeting_link || "Not available"}`
+        : `Venue: ${event.venue || "Not specified"}`;
+
+    cardBody.append(title, category, description, dateAndTime, mode, location);
     card.append(cardBody);
     column.append(card);
     resultsContainer.append(column);
