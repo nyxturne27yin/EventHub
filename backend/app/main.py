@@ -54,3 +54,6 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(events_router)
 app.include_router(organizer_profiles_router)
+
+from app.routers.certificates import router as certificates_router
+app.include_router(certificates_router)
