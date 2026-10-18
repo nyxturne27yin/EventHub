@@ -26,3 +26,26 @@ section {
 .form-select:focus {
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
 }
+
+/* Event discovery */
+.event-card {
+    min-width: 0;
+    border-color: #e5e7eb;
+}
+.event-card-title {
+    overflow-wrap: anywhere;
+}
+.event-card-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+.event-description {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+#eventSearchError {
+    margin-bottom: 0;
+}
