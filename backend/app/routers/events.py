@@ -78,7 +78,12 @@ async def list_events(
     search: str | None = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
-    statement = select(Event).where(Event.status == "published")
+    # Only published events are public. Date filtering is performed here as
+    # well as in the UI so past events are not advertised as upcoming.
+    statement = select(Event).where(
+        Event.status == "published",
+        Event.event_date >= date.today(),
+    )
     search_text = search.strip() if search else ""
 
     if search_text:
@@ -98,6 +103,27 @@ async def list_events(
 
     result = await db.execute(statement)
     return result.scalars().all()
+
+
+@router.get("/{event_id}", response_model=EventSearchItem)
+async def get_event_details(
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return public details for a published event (or its cancellation notice)."""
+    result = await db.execute(
+        select(Event).where(
+            Event.id == event_id,
+            Event.status.in_(( "published", "cancelled" )),
+        )
+    )
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+    return event
 
 
 @router.patch("/{event_id}")

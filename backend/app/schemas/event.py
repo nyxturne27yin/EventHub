@@ -164,6 +164,8 @@ class EventCreateRequest(BaseModel):
 
 
 class EventSearchItem(BaseModel):
+    """Public event fields safe to expose on discovery and detail pages."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -172,4 +174,9 @@ class EventSearchItem(BaseModel):
     category: str
     event_date: date
     start_time: time
+    end_time: time
     mode: str
+    venue: str | None = None
+    capacity: int | None = None
+    registration_deadline: datetime | None = None
+    status: str
