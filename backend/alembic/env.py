@@ -4,9 +4,9 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-
+from app.models.certificate import Certificate
 from app.database.database import DATABASE_URL, Base
-from app.models import Event, OrganizerProfile, Role, User
+from app.models import Certificate, Event, OrganizerProfile, Role, User
 # Alembic Config object
 config = context.config
 
