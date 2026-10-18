@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,57 +10,37 @@
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
     >
-
     <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
-
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
         <a class="navbar-brand" href="index.html">EventHub</a>
 
-        <button
-            class="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarNav"
-        >
+        <button class="navbar-toggler" type="button"
+            data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link" href="index.html">Home</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="#">Events</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="register.html">Register</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link active" href="profile.html">Profile</a>
-                </li>
+                <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Events</a></li>
+                <li class="nav-item"><a class="nav-link" href="register.html">Register</a></li>
+                <li class="nav-item"><a class="nav-link active" href="profile.html">Profile</a></li>
             </ul>
         </div>
     </div>
 </nav>
 
 <main class="container py-5">
-
     <div class="row justify-content-center">
         <div class="col-lg-8">
-
             <div class="mb-4">
                 <h1 class="h2">My Profile</h1>
-                <p class="text-muted">
-                    View your EventHub account information.
-                </p>
+                <p class="text-muted">View your EventHub account information.</p>
             </div>
 
             <div id="profileLoading" class="text-center py-4">
@@ -69,28 +50,13 @@
                 <p class="mt-2">Loading profile...</p>
             </div>
 
-            <div
-                id="profileError"
-                class="alert alert-danger d-none"
-                role="alert"
-            ></div>
+            <div id="profileError" class="alert alert-danger d-none" role="alert"></div>
+            <div id="profileMessage" class="alert d-none" role="status"></div>
 
             <div id="profileContent" class="d-none">
-
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
-
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h2 class="h4 mb-0">Account Information</h2>
-
-                            <button
-                                type="button"
-                                class="btn btn-outline-primary"
-                                id="editProfileBtn"
-                            >
-                                Edit Profile
-                            </button>
-                        </div>
+                        <h2 class="h4 mb-4">Account Information</h2>
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Name</label>
@@ -106,35 +72,88 @@
                             <label class="form-label fw-bold">Role</label>
                             <p id="profileRole" class="mb-0">-</p>
                         </div>
-
                     </div>
                 </div>
+
+                <section id="organizerProfileSection" class="card shadow-sm mb-4 d-none">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h4 mb-0">Organizer Profile</h2>
+                            <button type="button" class="btn btn-outline-primary"
+                                id="editProfileBtn">Edit Profile</button>
+                        </div>
+
+                        <p class="text-muted">
+                            Share information about your organization with students.
+                        </p>
+
+                        <div id="organizerProfileDetails">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Organization / Club</label>
+                                <p id="organizationNameDisplay" class="mb-0">Not provided</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Department</label>
+                                <p id="departmentDisplay" class="mb-0">Not provided</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Bio / Description</label>
+                                <p id="bioDisplay" class="mb-0">Not provided</p>
+                            </div>
+                            <div>
+                                <label class="form-label fw-bold">Contact Phone</label>
+                                <p id="contactPhoneDisplay" class="mb-0">Not provided</p>
+                            </div>
+                        </div>
+
+                        <form id="organizerProfileForm" class="d-none mt-3">
+                            <div class="mb-3">
+                                <label for="organizationName" class="form-label">Organization / Club</label>
+                                <input type="text" class="form-control" id="organizationName"
+                                    maxlength="150">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="department" class="form-label">Department</label>
+                                <input type="text" class="form-control" id="department"
+                                    maxlength="150">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="bio" class="form-label">Bio / Description</label>
+                                <textarea class="form-control" id="bio" rows="4"
+                                    maxlength="2000"></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="contactPhone" class="form-label">Contact Phone</label>
+                                <input type="tel" class="form-control" id="contactPhone"
+                                    maxlength="30">
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" id="saveProfileBtn">
+                                Save Profile
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="cancelProfileBtn">
+                                Cancel
+                            </button>
+                        </form>
+                    </div>
+                </section>
 
                 <div class="card shadow-sm">
                     <div class="card-body">
-
                         <h2 class="h4">Certificates</h2>
-
-                        <p class="text-muted mb-0">
-                            No certificates are available yet.
-                        </p>
-
+                        <p class="text-muted mb-0">No certificates are available yet.</p>
                     </div>
                 </div>
-
             </div>
-
         </div>
     </div>
-
 </main>
 
-<script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
-</script>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="js/app.js"></script>
 <script src="js/profile.js"></script>
-
 </body>
 </html>
