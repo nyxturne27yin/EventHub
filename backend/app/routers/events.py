@@ -1,12 +1,13 @@
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
+from app.models.registration import EventRegistration
 from app.models.organizer_profile import OrganizerProfile
 from app.models.user import User
 from app.schemas.event import (
@@ -126,10 +127,19 @@ async def list_events(
     result = await db.execute(statement)
     events = result.scalars().all()
 
-    return [
-        await event_search_item_with_organizer(event, db)
-        for event in events
-    ]
+    event_items = []
+    for event in events:
+        count_result = await db.execute(
+            select(func.count(EventRegistration.id)).where(
+                EventRegistration.event_id == event.id,
+                EventRegistration.status == "Registered",
+            )
+        )
+        item = await event_search_item_with_organizer(event, db)
+        item["registered_count"] = count_result.scalar_one()
+        event_items.append(item)
+
+    return event_items
 
 
 @router.get("/{event_id}", response_model=EventSearchItem)
@@ -152,7 +162,15 @@ async def get_event_details(
             detail="Event not found",
         )
 
-    return await event_search_item_with_organizer(event, db)
+    count_result = await db.execute(
+        select(func.count(EventRegistration.id)).where(
+            EventRegistration.event_id == event.id,
+            EventRegistration.status == "Registered",
+        )
+    )
+    item = await event_search_item_with_organizer(event, db)
+    item["registered_count"] = count_result.scalar_one()
+    return item
 
 
 @router.patch("/{event_id}")

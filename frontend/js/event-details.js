@@ -1,4 +1,4 @@
-const EVENTS_API_URL = "http://127.0.0.1:8001/events/";
+const EVENTS_API_URL = "http://127.0.0.1:8000/events/";
 
 const params = new URLSearchParams(window.location.search);
 const rawId = params.get("id");
@@ -49,17 +49,15 @@ function formatTime(value) {
 
 function getAvailability(event) {
     if ((event.status || "").toLowerCase() === "cancelled") {
-        return "Cancelled — registration is unavailable.";
+        return "Cancelled - registration is unavailable.";
     }
-
-    if (
-        event.registration_deadline &&
-        new Date(event.registration_deadline) < new Date()
-    ) {
-        return "Registration closed — the deadline has passed.";
+    if (event.registration_deadline && new Date(event.registration_deadline) <= new Date()) {
+        return "Registration closed - the deadline has passed.";
     }
-
-    return "Unable to confirm. Active registration counts are not currently available.";
+    if (Number(event.capacity) > 0 && Number(event.registered_count || 0) >= Number(event.capacity)) {
+        return "Full - participant capacity has been reached.";
+    }
+    return "Registration open.";
 }
 
 async function loadDetails() {
