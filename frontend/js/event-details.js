@@ -1,83 +1,198 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Event Details | EventHub</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg bg-body-tertiary">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="index.html">EventHub</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation"
-                aria-controls="mainNavigation" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="mainNavigation">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="index.html">Upcoming events</a></li>
-                    <li class="nav-item"><a class="nav-link" href="register.html">Register</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+const EVENTS_API_URL = "http://127.0.0.1:8001/events/";
 
-    <main class="container py-5">
-        <a class="btn btn-outline-secondary mb-4" href="index.html">← Back to events</a>
+const params = new URLSearchParams(window.location.search);
+const rawId = params.get("id");
+const eventId = rawId && /^[1-9]\d*$/.test(rawId) ? rawId : null;
 
-        <p id="detailsLoading" role="status">Loading event details…</p>
-        <div id="detailsError" class="alert alert-danger d-none" role="alert"></div>
-        <button id="retryDetails" class="btn btn-outline-danger d-none mb-3" type="button">
-            Retry
-        </button>
+const loading = document.getElementById("detailsLoading");
+const errorBox = document.getElementById("detailsError");
+const retryButton = document.getElementById("retryDetails");
+const details = document.getElementById("eventDetails");
 
-        <article id="eventDetails" class="card shadow-sm d-none">
-            <div class="card-body p-4 p-lg-5">
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                    <span id="detailCategory" class="badge text-bg-secondary"></span>
-                    <span id="detailMode" class="badge text-bg-info"></span>
-                    <span id="detailStatus" class="badge text-bg-success"></span>
-                </div>
+function setText(id, value) {
+    const element = document.getElementById(id);
 
-                <h1 id="detailTitle" class="h2 mb-3"></h1>
-                <p id="detailDescription" class="event-description"></p>
+    if (element) {
+        element.textContent = value;
+    }
+}
 
-                <hr>
+function formatDate(value) {
+    if (!value) return "Not specified";
 
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Organizing club / department</dt>
-                    <dd id="detailOrganization" class="col-sm-8"></dd>
+    const parsed = new Date(value + "T00:00:00");
 
-                    <dt class="col-sm-4">Date</dt>
-                    <dd id="detailDate" class="col-sm-8"></dd>
+    return Number.isNaN(parsed.getTime())
+        ? value
+        : new Intl.DateTimeFormat(undefined, {
+              dateStyle: "long"
+          }).format(parsed);
+}
 
-                    <dt class="col-sm-4">Time</dt>
-                    <dd id="detailTime" class="col-sm-8"></dd>
+function formatTime(value) {
+    if (!value) return "Not specified";
 
-                    <dt class="col-sm-4">Location</dt>
-                    <dd id="detailLocation" class="col-sm-8"></dd>
+    const parts = value.split(":");
 
-                    <dt class="col-sm-4">Maximum capacity</dt>
-                    <dd id="detailCapacity" class="col-sm-8"></dd>
+    if (parts.length < 2) return value;
 
-                    <dt class="col-sm-4">Registration deadline</dt>
-                    <dd id="detailDeadline" class="col-sm-8"></dd>
+    const parsed = new Date();
+    parsed.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
 
-                    <dt class="col-sm-4">Registration availability</dt>
-                    <dd id="detailAvailability" class="col-sm-8"></dd>
-                </dl>
+    return Number.isNaN(parsed.getTime())
+        ? value
+        : new Intl.DateTimeFormat(undefined, {
+              hour: "numeric",
+              minute: "2-digit"
+          }).format(parsed);
+}
 
-                <p class="small text-muted mt-4 mb-0">
-                    EventHub does not reserve a place from this page.
-                    Availability is confirmed by the registration workflow.
-                </p>
-            </div>
-        </article>
-    </main>
+function getAvailability(event) {
+    if ((event.status || "").toLowerCase() === "cancelled") {
+        return "Cancelled — registration is unavailable.";
+    }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/event-details.js"></script>
-</body>
-</html>
+    if (
+        event.registration_deadline &&
+        new Date(event.registration_deadline) < new Date()
+    ) {
+        return "Registration closed — the deadline has passed.";
+    }
+
+    return "Unable to confirm. Active registration counts are not currently available.";
+}
+
+async function loadDetails() {
+    if (!loading || !errorBox || !retryButton || !details) {
+        console.error(
+            "Event details page is missing one or more required HTML elements."
+        );
+        return;
+    }
+
+    loading.classList.remove("d-none");
+    errorBox.classList.add("d-none");
+    retryButton.classList.add("d-none");
+    details.classList.add("d-none");
+
+    if (!eventId) {
+        loading.classList.add("d-none");
+        errorBox.textContent =
+            "The event link is invalid. Return to the event listing and select an event.";
+        errorBox.classList.remove("d-none");
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            EVENTS_API_URL + encodeURIComponent(eventId),
+            {
+                headers: {
+                    Accept: "application/json"
+                }
+            }
+        );
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error(
+                    "This event does not exist or is not publicly available."
+                );
+            }
+
+            throw new Error(
+                "Unable to load event details. Please try again."
+            );
+        }
+
+        if (!data || typeof data !== "object" || !data.id) {
+            throw new Error(
+                "The server returned an unexpected event response."
+            );
+        }
+
+        setText("detailTitle", data.title || "Untitled Event");
+        setText("detailCategory", data.category || "General");
+        setText("detailMode", data.mode || "Mode not specified");
+
+        setText(
+            "detailStatus",
+            (data.status || "unknown").replace(/^./, c => c.toUpperCase())
+        );
+
+        setText(
+            "detailDescription",
+            data.description || "No description available."
+        );
+
+        // Organizer club / organization and department
+        setText(
+            "detailOrganization",
+            data.organization_name || "Not specified"
+        );
+        setText(
+            "detailDepartment",
+            data.department || "Not specified"
+        );
+
+        setText("detailDate", formatDate(data.event_date));
+
+        setText(
+            "detailTime",
+            formatTime(data.start_time) + " – " + formatTime(data.end_time)
+        );
+
+        setText(
+            "detailLocation",
+            (data.mode || "").toLowerCase() === "online"
+                ? "Online event. Meeting details are not exposed on the public discovery page."
+                : data.venue || "Venue not specified"
+        );
+
+        setText(
+            "detailCapacity",
+            data.capacity == null ? "Not specified" : String(data.capacity)
+        );
+
+        setText(
+            "detailDeadline",
+            data.registration_deadline
+                ? new Date(data.registration_deadline).toLocaleString()
+                : "No deadline specified"
+        );
+
+        setText("detailAvailability", getAvailability(data));
+
+        const status = (data.status || "").toLowerCase();
+        const badge = document.getElementById("detailStatus");
+
+        if (badge) {
+            badge.className =
+                "badge " +
+                (status === "cancelled"
+                    ? "text-bg-danger"
+                    : "text-bg-success");
+        }
+
+        loading.classList.add("d-none");
+        details.classList.remove("d-none");
+    } catch (error) {
+        loading.classList.add("d-none");
+
+        errorBox.textContent =
+            error.message || "Cannot connect to EventHub API.";
+
+        errorBox.classList.remove("d-none");
+        retryButton.classList.remove("d-none");
+
+        console.error("Failed to load event details:", error);
+    }
+}
+
+if (retryButton) {
+    retryButton.addEventListener("click", loadDetails);
+}
+
+loadDetails();
