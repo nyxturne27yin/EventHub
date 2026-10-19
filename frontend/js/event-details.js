@@ -1,10 +1,8 @@
-
 const EVENTS_API_URL = "http://127.0.0.1:8001/events/";
 
 const params = new URLSearchParams(window.location.search);
 const rawId = params.get("id");
-const eventId =
-    rawId && /^[1-9]\d*$/.test(rawId) ? rawId : null;
+const eventId = rawId && /^[1-9]\d*$/.test(rawId) ? rawId : null;
 
 const loading = document.getElementById("detailsLoading");
 const errorBox = document.getElementById("detailsError");
@@ -61,7 +59,6 @@ function getAvailability(event) {
         return "Registration closed — the deadline has passed.";
     }
 
-    // Active registration counts are not provided by this API.
     return "Unable to confirm. Active registration counts are not currently available.";
 }
 
@@ -87,7 +84,6 @@ async function loadDetails() {
     }
 
     try {
-        // Build the URL without using a template literal.
         const response = await fetch(
             EVENTS_API_URL + encodeURIComponent(eventId),
             {
@@ -123,9 +119,7 @@ async function loadDetails() {
 
         setText(
             "detailStatus",
-            (data.status || "unknown").replace(/^./, c =>
-                c.toUpperCase()
-            )
+            (data.status || "unknown").replace(/^./, c => c.toUpperCase())
         );
 
         setText(
@@ -133,11 +127,11 @@ async function loadDetails() {
             data.description || "No description available."
         );
 
+        // Organizer club / organization and department
         setText(
             "detailOrganization",
             data.organization_name || "Not specified"
         );
-
         setText(
             "detailDepartment",
             data.department || "Not specified"
@@ -147,9 +141,7 @@ async function loadDetails() {
 
         setText(
             "detailTime",
-            formatTime(data.start_time) +
-                " – " +
-                formatTime(data.end_time)
+            formatTime(data.start_time) + " – " + formatTime(data.end_time)
         );
 
         setText(
@@ -161,17 +153,13 @@ async function loadDetails() {
 
         setText(
             "detailCapacity",
-            data.capacity == null
-                ? "Not specified"
-                : String(data.capacity)
+            data.capacity == null ? "Not specified" : String(data.capacity)
         );
 
         setText(
             "detailDeadline",
             data.registration_deadline
-                ? new Date(
-                      data.registration_deadline
-                  ).toLocaleString()
+                ? new Date(data.registration_deadline).toLocaleString()
                 : "No deadline specified"
         );
 
