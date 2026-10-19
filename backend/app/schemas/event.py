@@ -162,7 +162,6 @@ class EventCreateRequest(BaseModel):
 
         return self
 
-
 class EventSearchItem(BaseModel):
     """Public event fields safe to expose on discovery and detail pages."""
 
@@ -180,3 +179,7 @@ class EventSearchItem(BaseModel):
     capacity: int | None = None
     registration_deadline: datetime | None = None
     status: str
+
+    # Public organizer identity fields.
+    organization_name: str | None = None
+    department: str | None = None
