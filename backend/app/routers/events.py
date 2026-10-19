@@ -1,12 +1,13 @@
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
+from app.models.registration import EventRegistration
 from app.models.user import User
 from app.schemas.event import (
     EventCreateRequest,
@@ -102,7 +103,18 @@ async def list_events(
     )
 
     result = await db.execute(statement)
-    return result.scalars().all()
+    events = result.scalars().all()
+
+    for event in events:
+        count_result = await db.execute(
+            select(func.count(EventRegistration.id)).where(
+                EventRegistration.event_id == event.id,
+                EventRegistration.status == "Registered",
+            )
+        )
+        event.registered_count = count_result.scalar_one()
+
+    return events
 
 
 @router.get("/{event_id}", response_model=EventSearchItem)
@@ -123,6 +135,15 @@ async def get_event_details(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found",
         )
+
+    count_result = await db.execute(
+        select(func.count(EventRegistration.id)).where(
+            EventRegistration.event_id == event.id,
+            EventRegistration.status == "Registered",
+        )
+    )
+    event.registered_count = count_result.scalar_one()
+
     return event
 
 

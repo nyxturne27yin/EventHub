@@ -15,6 +15,9 @@ class FakeResult:
     def scalar_one_or_none(self):
         return self.event
 
+    def scalar_one(self):
+        return 0
+
     def scalars(self):
         return self
 

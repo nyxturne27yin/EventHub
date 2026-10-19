@@ -20,15 +20,19 @@ class FakeResult:
     def scalar_one_or_none(self):
         return self.value
 
+    def scalar_one(self):
+        return self.value
+
     def all(self):
         return self.rows
 
 
 class FakeDB:
-    def __init__(self, event, registration, participant):
+    def __init__(self, event, registration, participant, registered_count=0):
         self.event = event
         self.registration = registration
         self.participant = participant
+        self.registered_count = registered_count
         self.committed = False
         self.refreshed = False
 
@@ -40,6 +44,9 @@ class FakeDB:
 
         if entities[0] is Event:
             return FakeResult(self.event)
+
+        if "count(" in str(query).lower():
+            return FakeResult(self.registered_count)
 
         if len(entities) > 1 and entities[1] is User:
             return FakeResult(
@@ -112,6 +119,7 @@ def registration_api():
             state["event"],
             state["registration"],
             state["participant"],
+            state.get("registered_count", 0),
         )
         state["db"] = db
         yield db
@@ -185,3 +193,30 @@ def test_organizer_cannot_manage_another_organizers_participants(registration_ap
 
     assert response.status_code == 403
     assert state["registration"].status == "Registered"
+
+
+def test_student_registration_rejected_when_event_is_full(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
+    state["registered_count"] = state["event"].capacity
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Event capacity is full"
+    assert state["db"].committed is False
+
+
+def test_cancelled_registration_cannot_be_reactivated_when_event_is_full(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["registration"].status = "Cancelled"
+    state["registered_count"] = state["event"].capacity
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Event capacity is full"
+    assert state["registration"].status == "Cancelled"
+    assert state["db"].committed is False

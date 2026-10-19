@@ -49,6 +49,17 @@ async def register_for_event(
     if registration is not None:
         if registration.status == "Registered":
             raise HTTPException(status_code=409, detail="Already registered for this event")
+
+        count_result = await db.execute(
+            select(func.count(EventRegistration.id)).where(
+                EventRegistration.event_id == event_id,
+                EventRegistration.status == "Registered",
+            )
+        )
+        registered_count = count_result.scalar_one()
+        if registered_count >= event.capacity:
+            raise HTTPException(status_code=409, detail="Event capacity is full")
+
         registration.status = "Registered"
         await db.commit()
         await db.refresh(registration)

@@ -178,5 +178,6 @@ class EventSearchItem(BaseModel):
     mode: str
     venue: str | None = None
     capacity: int | None = None
+    registered_count: int = 0
     registration_deadline: datetime | None = None
     status: str

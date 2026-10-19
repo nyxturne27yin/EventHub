@@ -32,13 +32,16 @@ function formatTime(value) {
 }
 
 function getAvailability(event) {
-    if ((event.status || "").toLowerCase() === "cancelled") return "Cancelled — registration is unavailable.";
-    if (event.registration_deadline && new Date(event.registration_deadline) < new Date()) {
-        return "Registration closed — the deadline has passed.";
+    if ((event.status || "").toLowerCase() === "cancelled") {
+        return "Cancelled - registration is unavailable.";
     }
-    // The current API does not expose active registration counts, so capacity
-    // alone cannot prove that places remain or that the event is full.
-    return "Unable to confirm. Active registration counts are not currently available.";
+    if (event.registration_deadline && new Date(event.registration_deadline) <= new Date()) {
+        return "Registration closed - the deadline has passed.";
+    }
+    if (Number(event.capacity) > 0 && Number(event.registered_count || 0) >= Number(event.capacity)) {
+        return "Full - participant capacity has been reached.";
+    }
+    return "Registration open.";
 }
 
 async function loadDetails() {
