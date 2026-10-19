@@ -57,3 +57,6 @@ app.include_router(organizer_profiles_router)
 
 from app.routers.certificates import router as certificates_router
 app.include_router(certificates_router)
+
+from app.routers.registrations import router as registrations_router
+app.include_router(registrations_router)
