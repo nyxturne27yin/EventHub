@@ -8,6 +8,7 @@ from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
 from app.models.registration import EventRegistration
+from app.models.organizer_profile import OrganizerProfile
 from app.models.user import User
 from app.schemas.event import (
     EventCreateRequest,
@@ -16,6 +17,27 @@ from app.schemas.event import (
 )
 
 router = APIRouter(prefix="/events", tags=["Events"])
+
+
+async def event_search_item_with_organizer(
+    event: Event,
+    db: AsyncSession,
+) -> dict:
+    """Return public event details with optional organizer information."""
+    profile_result = await db.execute(
+        select(OrganizerProfile).where(
+            OrganizerProfile.user_id == event.organizer_id
+        )
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    item = EventSearchItem.model_validate(event).model_dump()
+    item["organization_name"] = getattr(
+        profile, "organization_name", None
+    )
+    item["department"] = getattr(profile, "department", None)
+
+    return item
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -105,6 +127,7 @@ async def list_events(
     result = await db.execute(statement)
     events = result.scalars().all()
 
+    event_items = []
     for event in events:
         count_result = await db.execute(
             select(func.count(EventRegistration.id)).where(
@@ -112,9 +135,11 @@ async def list_events(
                 EventRegistration.status == "Registered",
             )
         )
-        event.registered_count = count_result.scalar_one()
+        item = await event_search_item_with_organizer(event, db)
+        item["registered_count"] = count_result.scalar_one()
+        event_items.append(item)
 
-    return events
+    return event_items
 
 
 @router.get("/{event_id}", response_model=EventSearchItem)
@@ -122,14 +147,15 @@ async def get_event_details(
     event_id: int = Path(gt=0),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return public details for a published event (or its cancellation notice)."""
+    """Return public details for a published event or its cancellation notice."""
     result = await db.execute(
         select(Event).where(
             Event.id == event_id,
-            Event.status.in_(( "published", "cancelled" )),
+            Event.status.in_(("published", "cancelled")),
         )
     )
     event = result.scalar_one_or_none()
+
     if event is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -142,9 +168,9 @@ async def get_event_details(
             EventRegistration.status == "Registered",
         )
     )
-    event.registered_count = count_result.scalar_one()
-
-    return event
+    item = await event_search_item_with_organizer(event, db)
+    item["registered_count"] = count_result.scalar_one()
+    return item
 
 
 @router.patch("/{event_id}")
