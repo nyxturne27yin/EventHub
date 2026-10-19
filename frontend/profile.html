@@ -75,7 +75,8 @@
                     </div>
                 </div>
 
-                <section id="organizerProfileSection" class="card shadow-sm mb-4 d-none">
+                <section id="organizerProfileSection"
+                    class="card shadow-sm mb-4 d-none">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Organizer Profile</h2>
@@ -141,12 +142,35 @@
                     </div>
                 </section>
 
-                <div class="card shadow-sm">
+                <section id="studentCertificatesSection" class="card shadow-sm mb-4 d-none">
                     <div class="card-body">
-                        <h2 class="h4">Certificates</h2>
-                        <p class="text-muted mb-0">No certificates are available yet.</p>
+                        <h2 class="h4 mb-3">My Certificates</h2>
+                        <p class="text-muted">
+                            View and verify certificates issued for your events.
+                        </p>
+
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <button type="button"
+                                class="btn btn-primary btn-sm certificate-filter"
+                                data-category="All">All</button>
+                            <button type="button"
+                                class="btn btn-outline-primary btn-sm certificate-filter"
+                                data-category="Academic">Academic</button>
+                            <button type="button"
+                                class="btn btn-outline-primary btn-sm certificate-filter"
+                                data-category="Research">Research</button>
+                        </div>
+
+                        <div id="certificateMessage"
+                            class="alert d-none" role="status"></div>
+
+                        <p id="certificatesEmpty" class="text-muted mb-0">
+                            No certificates are available yet.
+                        </p>
+
+                        <div id="certificatesList" class="row g-3 mt-1"></div>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     </div>

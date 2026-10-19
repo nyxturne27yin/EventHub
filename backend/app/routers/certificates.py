@@ -1,6 +1,7 @@
-﻿import os
-import uuid
+﻿
+import os
 from io import BytesIO
+from typing import Literal
 from uuid import UUID
 
 import qrcode
@@ -8,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user, require_role
@@ -20,8 +21,12 @@ from app.models.user import User
 router = APIRouter(prefix="/certificates", tags=["Certificates"])
 
 
+CertificateCategory = Literal["Academic", "Research"]
+
+
 class CertificateGenerateRequest(BaseModel):
     student_id: int = Field(gt=0)
+    category: CertificateCategory = "Academic"
 
 
 @router.post("/events/{event_id}/generate", status_code=201)
@@ -49,13 +54,18 @@ async def generate_certificate(
             detail="Certificates can only be issued for completed events",
         )
 
-    result = await db.execute(select(User).where(User.id == payload.student_id))
+    result = await db.execute(
+        select(User).where(User.id == payload.student_id)
+    )
     student = result.scalar_one_or_none()
 
     if student is None:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    if student.role is None or student.role.name.strip().lower() != "student":
+    if (
+        student.role is None
+        or student.role.name.strip().lower() != "student"
+    ):
         raise HTTPException(
             status_code=400,
             detail="Certificates can only be issued to student accounts",
@@ -73,7 +83,11 @@ async def generate_certificate(
             detail="Certificate already issued for this student and event",
         )
 
-    certificate = Certificate(student_id=student.id, event_id=event.id)
+    certificate = Certificate(
+        student_id=student.id,
+        event_id=event.id,
+        category=payload.category,
+    )
     db.add(certificate)
 
     try:
@@ -93,9 +107,15 @@ async def generate_certificate(
             "student_id": certificate.student_id,
             "event_id": event.id,
             "event_title": event.title,
+            "title": f"{event.title} Certificate",
+            "category": certificate.category,
             "issued_at": certificate.issued_at,
-            "verification_path": f"/certificates/verify/{certificate.certificate_id}",
-            "qr_path": f"/certificates/verify/{certificate.certificate_id}/qr",
+            "verification_path": (
+                f"/certificates/verify/{certificate.certificate_id}"
+            ),
+            "qr_path": (
+                f"/certificates/verify/{certificate.certificate_id}/qr"
+            ),
         },
     }
 
@@ -103,7 +123,7 @@ async def generate_certificate(
 @router.get("/me")
 async def my_certificates(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("student")),
 ):
     result = await db.execute(
         select(Certificate, Event)
@@ -117,9 +137,15 @@ async def my_certificates(
             "certificate_id": cert.certificate_id,
             "event_id": event.id,
             "event_title": event.title,
+            "title": f"{event.title} Certificate",
+            "category": cert.category,
             "issued_at": cert.issued_at,
-            "verification_path": f"/certificates/verify/{cert.certificate_id}",
-            "qr_path": f"/certificates/verify/{cert.certificate_id}/qr",
+            "verification_path": (
+                f"/certificates/verify/{cert.certificate_id}"
+            ),
+            "qr_path": (
+                f"/certificates/verify/{cert.certificate_id}/qr"
+            ),
         }
         for cert, event in result.all()
     ]
@@ -133,23 +159,38 @@ async def verify_certificate(
     try:
         parsed_id = str(UUID(certificate_id))
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Certificate not found",
+        )
 
     result = await db.execute(
-        select(Certificate).where(Certificate.certificate_id == parsed_id)
+        select(Certificate).where(
+            Certificate.certificate_id == parsed_id
+        )
     )
     cert = result.scalar_one_or_none()
 
     if cert is None:
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Certificate not found",
+        )
 
-    result = await db.execute(select(Event).where(Event.id == cert.event_id))
+    result = await db.execute(
+        select(Event).where(Event.id == cert.event_id)
+    )
     event = result.scalar_one_or_none()
 
     if event is None:
-        raise HTTPException(status_code=404, detail="Certificate event not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Certificate event not found",
+        )
 
-    result = await db.execute(select(User).where(User.id == cert.student_id))
+    result = await db.execute(
+        select(User).where(User.id == cert.student_id)
+    )
     student = result.scalar_one_or_none()
 
     return {
@@ -157,6 +198,7 @@ async def verify_certificate(
         "certificate_id": cert.certificate_id,
         "student_name": student.name if student else None,
         "event_title": event.title,
+        "category": cert.category,
         "issued_at": cert.issued_at,
     }
 
@@ -169,15 +211,23 @@ async def certificate_qr(
     try:
         parsed_id = str(UUID(certificate_id))
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Certificate not found",
+        )
 
     result = await db.execute(
-        select(Certificate).where(Certificate.certificate_id == parsed_id)
+        select(Certificate).where(
+            Certificate.certificate_id == parsed_id
+        )
     )
     cert = result.scalar_one_or_none()
 
     if cert is None:
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Certificate not found",
+        )
 
     base_url = os.getenv("PUBLIC_API_BASE_URL", "").strip().rstrip("/")
     if not base_url:
@@ -186,10 +236,15 @@ async def certificate_qr(
             detail="PUBLIC_API_BASE_URL is not configured",
         )
 
-    verify_url = f"{base_url}/certificates/verify/{cert.certificate_id}"
+    verify_url = (
+        f"{base_url}/certificates/verify/{cert.certificate_id}"
+    )
     qr = qrcode.make(verify_url)
     image_buffer = BytesIO()
     qr.save(image_buffer, format="PNG")
     image_buffer.seek(0)
 
-    return StreamingResponse(image_buffer, media_type="image/png")
+    return StreamingResponse(
+        image_buffer,
+        media_type="image/png",
+    )
