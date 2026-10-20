@@ -47,28 +47,30 @@ async def register_for_event(
     registration = existing.scalar_one_or_none()
 
     if registration is not None:
-        if registration.status == "Registered":
-            raise HTTPException(status_code=409, detail="Already registered for this event")
-
-        count_result = await db.execute(
-            select(func.count(EventRegistration.id)).where(
-                EventRegistration.event_id == event_id,
-                EventRegistration.status == "Registered",
+        if registration.status == "Cancelled":
+            count_result = await db.execute(
+                select(func.count(EventRegistration.id)).where(
+                    EventRegistration.event_id == event_id,
+                    EventRegistration.status == "Registered",
+                )
             )
-        )
-        registered_count = count_result.scalar_one()
-        if registered_count >= event.capacity:
-            raise HTTPException(status_code=409, detail="Event capacity is full")
+            registered_count = count_result.scalar_one()
 
-        registration.status = "Registered"
-        await db.commit()
-        await db.refresh(registration)
-        return {
-            "id": registration.id,
-            "event_id": registration.event_id,
-            "participant_id": registration.participant_id,
-            "status": registration.status,
-        }
+            if registered_count >= event.capacity:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Event capacity is full",
+                )
+
+            raise HTTPException(
+                status_code=409,
+                detail="Cancelled registration cannot be reactivated",
+            )
+
+        raise HTTPException(
+            status_code=409,
+            detail="Already registered for this event",
+        )
 
     count_result = await db.execute(
         select(func.count(EventRegistration.id)).where(
@@ -98,6 +100,52 @@ async def register_for_event(
     }
 
 
+@router.post("/events/{event_id}/registrations/{registration_id}/cancel")
+async def cancel_registration(
+    event_id: int = Path(gt=0),
+    registration_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("student")),
+):
+    result = await db.execute(
+        select(EventRegistration).where(
+            EventRegistration.id == registration_id,
+            EventRegistration.event_id == event_id,
+        )
+    )
+    registration = result.scalar_one_or_none()
+
+    if registration is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Registration not found",
+        )
+
+    if registration.participant_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only cancel your own registration",
+        )
+
+    if registration.status == "Cancelled":
+        raise HTTPException(
+            status_code=409,
+            detail="Registration is already cancelled",
+        )
+
+    registration.status = "Cancelled"
+
+    await db.commit()
+    await db.refresh(registration)
+
+    return {
+        "message": "Registration cancelled successfully",
+        "registration_id": registration.id,
+        "event_id": registration.event_id,
+        "status": registration.status,
+    }
+
+
 @router.get("/events/{event_id}/participants")
 async def list_event_participants(
     event_id: int = Path(gt=0),
@@ -111,7 +159,10 @@ async def list_event_participants(
         raise HTTPException(status_code=404, detail="Event not found")
 
     if event.organizer_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only view participants for your own events")
+        raise HTTPException(
+            status_code=403,
+            detail="You can only view participants for your own events",
+        )
 
     result = await db.execute(
         select(EventRegistration, User)
@@ -148,7 +199,10 @@ async def update_registration_status(
         raise HTTPException(status_code=404, detail="Event not found")
 
     if event.organizer_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only manage participants for your own events")
+        raise HTTPException(
+            status_code=403,
+            detail="You can only manage participants for your own events",
+        )
 
     result = await db.execute(
         select(EventRegistration).where(
