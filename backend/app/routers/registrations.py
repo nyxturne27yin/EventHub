@@ -107,6 +107,27 @@ async def cancel_registration(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("student")),
 ):
+    event_result = await db.execute(
+        select(Event).where(Event.id == event_id)
+    )
+    event = event_result.scalar_one_or_none()
+
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if event.status.lower() == "cancelled":
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot cancel registration for a cancelled event",
+        )
+
+    event_end = datetime.combine(event.event_date, event.end_time)
+    if event_end <= datetime.now():
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot cancel registration after the event has ended",
+        )
+
     result = await db.execute(
         select(EventRegistration).where(
             EventRegistration.id == registration_id,

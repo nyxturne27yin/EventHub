@@ -266,3 +266,26 @@ def test_cannot_cancel_registration_twice(registration_api):
     assert response.status_code == 409
     assert state["registration"].status == "Cancelled"
     assert state["db"].committed is False
+
+def test_cannot_cancel_registration_for_cancelled_event(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["event"].status = "cancelled"
+
+    response = client.post("/events/10/registrations/20/cancel")
+
+    assert response.status_code == 409
+    assert state["registration"].status == "Registered"
+    assert state["db"].committed is False
+
+
+def test_cannot_cancel_registration_after_event_ends(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["event"].event_date = date.today() - timedelta(days=1)
+
+    response = client.post("/events/10/registrations/20/cancel")
+
+    assert response.status_code == 409
+    assert state["registration"].status == "Registered"
+    assert state["db"].committed is False
