@@ -58,7 +58,7 @@ async def register_for_event(
             )
             registered_count = count_result.scalar_one()
 
-            if registered_count >= event.capacity:
+            if event.capacity is not None and registered_count >= event.capacity:
                 raise HTTPException(
                     status_code=409,
                     detail="Event capacity is full",
@@ -82,7 +82,7 @@ async def register_for_event(
     )
     registered_count = count_result.scalar_one()
 
-    if registered_count >= event.capacity:
+    if event.capacity is not None and registered_count >= event.capacity:
         raise HTTPException(status_code=409, detail="Event capacity is full")
 
     registration = EventRegistration(
@@ -250,3 +250,4 @@ async def update_registration_status(
         "participant_id": registration.participant_id,
         "status": registration.status,
     }
+
