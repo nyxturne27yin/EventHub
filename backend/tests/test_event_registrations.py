@@ -28,11 +28,18 @@ class FakeResult:
 
 
 class FakeDB:
-    def __init__(self, event, registration, participant, registered_count=0):
+    def __init__(
+        self, event, registration, participant,
+        registered_count=0, state=None
+    ):
         self.event = event
         self.registration = registration
         self.participant = participant
         self.registered_count = registered_count
+        self.state = state
+        self.initial_status = (
+            registration.status if registration else None
+        )
         self.committed = False
         self.refreshed = False
 
@@ -59,6 +66,23 @@ class FakeDB:
 
     async def commit(self):
         self.committed = True
+
+        if (
+            self.initial_status == "Registered"
+            and self.registration
+            and self.registration.status == "Cancelled"
+        ):
+            self.registered_count = max(
+                0, self.registered_count - 1
+            )
+            if self.state is not None:
+                self.state["registered_count"] = (
+                    self.registered_count
+                )
+
+        self.initial_status = (
+            self.registration.status if self.registration else None
+        )
 
     async def refresh(self, instance):
         self.refreshed = True
@@ -120,6 +144,7 @@ def registration_api():
             state["registration"],
             state["participant"],
             state.get("registered_count", 0),
+            state=state,
         )
         state["db"] = db
         yield db
@@ -288,4 +313,29 @@ def test_cannot_cancel_registration_after_event_ends(registration_api):
 
     assert response.status_code == 409
     assert state["registration"].status == "Registered"
+    assert state["db"].committed is False
+
+def test_cancelling_registration_restores_available_capacity(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["registered_count"] = state["event"].capacity
+
+    response = client.post("/events/10/registrations/20/cancel")
+
+    assert response.status_code == 200
+    assert state["registration"].status == "Cancelled"
+    assert state["db"].committed is True
+    assert state["db"].registered_count == state["event"].capacity - 1
+
+
+def test_failed_cancellation_does_not_change_capacity(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registered_count"] = state["event"].capacity
+
+    response = client.post("/events/10/registrations/20/cancel")
+
+    assert response.status_code == 403
+    assert state["registration"].status == "Registered"
+    assert state["db"].registered_count == state["event"].capacity
     assert state["db"].committed is False
