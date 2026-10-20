@@ -23,7 +23,9 @@ async def register_for_event(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("student")),
 ):
-    result = await db.execute(select(Event).where(Event.id == event_id))
+    result = await db.execute(
+        select(Event).where(Event.id == event_id).with_for_update()
+    )
     event = result.scalar_one_or_none()
 
     if event is None or event.status != "published":
@@ -56,7 +58,7 @@ async def register_for_event(
             )
             registered_count = count_result.scalar_one()
 
-            if registered_count >= event.capacity:
+            if event.capacity is not None and registered_count >= event.capacity:
                 raise HTTPException(
                     status_code=409,
                     detail="Event capacity is full",
@@ -80,7 +82,7 @@ async def register_for_event(
     )
     registered_count = count_result.scalar_one()
 
-    if registered_count >= event.capacity:
+    if event.capacity is not None and registered_count >= event.capacity:
         raise HTTPException(status_code=409, detail="Event capacity is full")
 
     registration = EventRegistration(
@@ -108,7 +110,7 @@ async def cancel_registration(
     current_user: User = Depends(require_role("student")),
 ):
     event_result = await db.execute(
-        select(Event).where(Event.id == event_id)
+        select(Event).where(Event.id == event_id).with_for_update()
     )
     event = event_result.scalar_one_or_none()
 
@@ -213,7 +215,9 @@ async def update_registration_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("organizer")),
 ):
-    result = await db.execute(select(Event).where(Event.id == event_id))
+    result = await db.execute(
+        select(Event).where(Event.id == event_id).with_for_update()
+    )
     event = result.scalar_one_or_none()
 
     if event is None:
@@ -246,3 +250,4 @@ async def update_registration_status(
         "participant_id": registration.participant_id,
         "status": registration.status,
     }
+
