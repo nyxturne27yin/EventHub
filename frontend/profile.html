@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -93,14 +92,17 @@
                                 <label class="form-label fw-bold">Organization / Club</label>
                                 <p id="organizationNameDisplay" class="mb-0">Not provided</p>
                             </div>
+
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Department</label>
                                 <p id="departmentDisplay" class="mb-0">Not provided</p>
                             </div>
+
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Bio / Description</label>
                                 <p id="bioDisplay" class="mb-0">Not provided</p>
                             </div>
+
                             <div>
                                 <label class="form-label fw-bold">Contact Phone</label>
                                 <p id="contactPhoneDisplay" class="mb-0">Not provided</p>
@@ -135,10 +137,44 @@
                             <button type="submit" class="btn btn-primary" id="saveProfileBtn">
                                 Save Profile
                             </button>
+
                             <button type="button" class="btn btn-secondary" id="cancelProfileBtn">
                                 Cancel
                             </button>
                         </form>
+                    </div>
+                </section>
+
+                <!-- Organizer events -->
+                <section id="organizerEventsSection" class="card shadow-sm mb-4 d-none">
+                    <div class="card-body">
+                        <h2 class="h4 mb-3">Organized Events</h2>
+
+                        <p id="organizerEventsLoading" class="text-muted d-none">
+                            Loading events...
+                        </p>
+
+                        <div id="organizerEventsError"
+                            class="alert alert-danger d-none" role="alert"></div>
+
+                        <p id="organizerEventsEmpty" class="text-muted d-none">
+                            This organizer has no events to display yet.
+                        </p>
+
+                        <div id="organizerUpcomingEventsSection" class="mb-4 d-none">
+                            <h3 class="h5 mb-3">Upcoming Events</h3>
+                            <div id="organizerUpcomingEventsList" class="row g-3"></div>
+                        </div>
+
+                        <div id="organizerCompletedEventsSection" class="mb-4 d-none">
+                            <h3 class="h5 mb-3">Completed Events</h3>
+                            <div id="organizerCompletedEventsList" class="row g-3"></div>
+                        </div>
+
+                        <div id="organizerCancelledEventsSection" class="d-none">
+                            <h3 class="h5 mb-3">Cancelled Events</h3>
+                            <div id="organizerCancelledEventsList" class="row g-3"></div>
+                        </div>
                     </div>
                 </section>
 
@@ -153,9 +189,11 @@
                             <button type="button"
                                 class="btn btn-primary btn-sm certificate-filter"
                                 data-category="All">All</button>
+
                             <button type="button"
                                 class="btn btn-outline-primary btn-sm certificate-filter"
                                 data-category="Academic">Academic</button>
+
                             <button type="button"
                                 class="btn btn-outline-primary btn-sm certificate-filter"
                                 data-category="Research">Research</button>

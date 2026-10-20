@@ -1,4 +1,3 @@
-
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -121,7 +120,7 @@ async def get_organizer_profile(
         select(Event)
         .where(
             Event.organizer_id == user_id,
-            Event.status == "published",
+            Event.status.in_(("published", "cancelled", "completed")),
         )
         .order_by(Event.event_date, Event.start_time)
     )
@@ -132,11 +131,16 @@ async def get_organizer_profile(
         {
             "id": event.id,
             "title": event.title,
+            "description": event.description,
+            "category": event.category,
             "event_date": event.event_date,
             "start_time": event.start_time,
             "end_time": event.end_time,
             "mode": event.mode,
             "venue": event.venue,
+            "capacity": event.capacity,
+            "registration_deadline": event.registration_deadline,
+            "status": event.status,
         }
         for event in events
     ]
