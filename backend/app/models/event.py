@@ -1,5 +1,4 @@
 
-
 from datetime import date, datetime, time
 
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, Time
@@ -24,7 +23,9 @@ class Event(Base):
     venue: Mapped[str | None] = mapped_column(String(255), nullable=True)
     meeting_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    # None means unlimited capacity.
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     registration_deadline: Mapped[datetime] = mapped_column(
         DateTime, nullable=False
     )
