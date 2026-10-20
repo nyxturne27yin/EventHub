@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, ConfigDict, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database.database import get_db
 from app.dependencies.auth import require_role
+from app.event_status import can_transition_event_status
 from app.models.event import Event
 from app.models.role import Role
 from app.models.user import User
@@ -61,8 +62,13 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
         "active_users": active_users or 0,
         "inactive_users": (total_users or 0) - (active_users or 0),
         "total_events": total_events or 0,
-        "users_by_role": {role: count for role, count in role_result.all()},
-        "events_by_status": {event_status: count for event_status, count in status_result.all()},
+        "users_by_role": {
+            role: count for role, count in role_result.all()
+        },
+        "events_by_status": {
+            event_status: count
+            for event_status, count in status_result.all()
+        },
     }
 
 
@@ -71,59 +77,150 @@ async def list_users(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).options(selectinload(User.role)).order_by(User.id)
     )
+
     return [
-        {"id": user.id, "name": user.name, "email": user.email, "role": user.role.name if user.role else None, "is_active": user.is_active, "created_at": user.created_at}
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role.name if user.role else None,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
+        }
         for user in result.scalars().all()
     ]
 
 
 @router.patch("/users/{user_id}")
 async def update_user(
-    payload: UserUpdateRequest, user_id: int = Path(gt=0),
-    db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("administrator")),
+    payload: UserUpdateRequest,
+    user_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("administrator")),
 ):
-    result = await db.execute(select(User).options(selectinload(User.role)).where(User.id == user_id))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.role))
+        .where(User.id == user_id)
+    )
     user = result.scalar_one_or_none()
+
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
     if user.id == current_user.id:
         if payload.role is not None and payload.role != "administrator":
-            raise HTTPException(400, "You cannot remove your own administrator role.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot remove your own administrator role.",
+            )
+
         if payload.is_active is False:
-            raise HTTPException(status_code=400, detail="You cannot deactivate your own account.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot deactivate your own account.",
+            )
+
     if payload.role is not None:
-        role_result = await db.execute(select(Role).where(Role.name == payload.role))
+        role_result = await db.execute(
+            select(Role).where(Role.name == payload.role)
+        )
         role = role_result.scalar_one_or_none()
+
         if role is None:
-            raise HTTPException(status_code=500, detail="Required role is not configured.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Required role is not configured.",
+            )
+
         user.role = role
+
     if payload.is_active is not None:
         user.is_active = payload.is_active
+
     await db.commit()
     await db.refresh(user)
-    return {"message": "User updated successfully", "id": user.id, "name": user.name, "role": user.role.name if user.role else None, "is_active": user.is_active}
+
+    return {
+        "message": "User updated successfully",
+        "id": user.id,
+        "name": user.name,
+        "role": user.role.name if user.role else None,
+        "is_active": user.is_active,
+    }
 
 
 @router.get("/events")
 async def list_all_events(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Event).options(selectinload(Event.organizer)).order_by(Event.id.desc()))
+    result = await db.execute(
+        select(Event)
+        .options(selectinload(Event.organizer))
+        .order_by(Event.id.desc())
+    )
+
     return [
-        {"id": event.id, "title": event.title, "event_date": event.event_date, "status": event.status, "organizer_id": event.organizer_id, "organizer_name": event.organizer.name if event.organizer else None}
+        {
+            "id": event.id,
+            "title": event.title,
+            "event_date": event.event_date,
+            "status": event.status,
+            "organizer_id": event.organizer_id,
+            "organizer_name": (
+                event.organizer.name if event.organizer else None
+            ),
+        }
         for event in result.scalars().all()
     ]
 
 
 @router.patch("/events/{event_id}/status")
-async def update_event_status(payload: EventStatusUpdateRequest, event_id: int = Path(gt=0), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Event).where(Event.id == event_id))
+async def update_event_status(
+    payload: EventStatusUpdateRequest,
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Event).where(Event.id == event_id)
+    )
     event = result.scalar_one_or_none()
+
     if event is None:
-        raise HTTPException(status_code=404, detail="Event not found")
-    event.status = payload.status
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    current_status = (event.status or "").strip().lower()
+    requested_status = payload.status
+
+    if current_status == requested_status:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Event is already {requested_status}.",
+        )
+
+    if not can_transition_event_status(
+        current_status,
+        requested_status,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot change event status from "
+                f"{current_status} to {requested_status}."
+            ),
+        )
+
+    event.status = requested_status
+
     await db.commit()
     await db.refresh(event)
-    return {"message": "Event status updated successfully", "event_id": event.id, "status": event.status}
 
-
-
-
+    return {
+        "message": "Event status updated successfully",
+        "event_id": event.id,
+        "status": event.status,
+    }
