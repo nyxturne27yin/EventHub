@@ -19,6 +19,11 @@ from app.schemas.event import (
 router = APIRouter(prefix="/events", tags=["Events"])
 
 
+def normalize_event_status(event: Event) -> str:
+    """Return an event's status in normalized form."""
+    return (event.status or "").strip().lower()
+
+
 async def event_search_item_with_organizer(
     event: Event,
     db: AsyncSession,
@@ -101,8 +106,7 @@ async def list_events(
     search: str | None = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
-    # Only published events are public. Date filtering is performed here as
-    # well as in the UI so past events are not advertised as upcoming.
+    """List published events scheduled for today or a future date."""
     statement = select(Event).where(
         Event.status == "published",
         Event.event_date >= date.today(),
@@ -128,6 +132,7 @@ async def list_events(
     events = result.scalars().all()
 
     event_items = []
+
     for event in events:
         count_result = await db.execute(
             select(func.count(EventRegistration.id)).where(
@@ -135,6 +140,7 @@ async def list_events(
                 EventRegistration.status == "Registered",
             )
         )
+
         item = await event_search_item_with_organizer(event, db)
         item["registered_count"] = count_result.scalar_one()
         event_items.append(item)
@@ -168,8 +174,10 @@ async def get_event_details(
             EventRegistration.status == "Registered",
         )
     )
+
     item = await event_search_item_with_organizer(event, db)
     item["registered_count"] = count_result.scalar_one()
+
     return item
 
 
@@ -206,10 +214,18 @@ async def update_event(
             detail="You can only update your own events",
         )
 
-    if event.status.lower() == "cancelled":
+    current_status = normalize_event_status(event)
+
+    if current_status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cancelled events cannot be updated",
+        )
+
+    if current_status == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Completed events cannot be updated",
         )
 
     changes = payload.model_dump(exclude_unset=True)
@@ -354,10 +370,24 @@ async def cancel_event(
             detail="You can only cancel your own events",
         )
 
-    if event.status.lower() == "cancelled":
+    current_status = normalize_event_status(event)
+
+    if current_status == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Completed events cannot be cancelled.",
+        )
+
+    if current_status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Event is already cancelled",
+        )
+
+    if current_status not in {"draft", "published"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel an event with status '{current_status}'.",
         )
 
     event.status = "cancelled"

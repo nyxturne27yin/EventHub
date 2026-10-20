@@ -126,12 +126,15 @@ def test_request_without_authentication_is_rejected():
     app.dependency_overrides.clear()
     client = TestClient(app)
 
-    response = client.patch(
-        "/events/10",
-        json=valid_update(),
-    )
+    try:
+        response = client.patch(
+            "/events/10",
+            json=valid_update(),
+        )
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
 
-    client.close()
     assert response.status_code == 401
 
 
@@ -230,6 +233,22 @@ def test_cancelled_event_cannot_be_updated(setup_api):
 
     assert response.status_code == 409
     assert state["event"].title == "Original Event"
+    assert state["db"].committed is False
+
+
+def test_completed_event_cannot_be_updated(setup_api):
+    client, state = setup_api
+    state["event"].status = "completed"
+
+    response = client.patch(
+        "/events/10",
+        json=valid_update(),
+    )
+
+    assert response.status_code == 409
+    assert state["event"].title == "Original Event"
+    assert state["db"].committed is False
+
 
 def test_title_update_is_allowed_for_past_event(setup_api):
     client, state = setup_api
@@ -243,7 +262,6 @@ def test_title_update_is_allowed_for_past_event(setup_api):
     assert response.status_code == 200
     assert state["event"].title == "Updated Past Event"
     assert state["event"].event_date == date.today() - timedelta(days=1)
-
 
 
 def test_organizer_can_cancel_own_event(setup_api):
@@ -267,6 +285,7 @@ def test_student_cannot_cancel_event(setup_api):
 
     assert response.status_code == 403
     assert state["event"].status == "draft"
+    assert state["db"].committed is False
 
 
 def test_organizer_cannot_cancel_another_organizers_event(setup_api):
@@ -277,6 +296,7 @@ def test_organizer_cannot_cancel_another_organizers_event(setup_api):
 
     assert response.status_code == 403
     assert state["event"].status == "draft"
+    assert state["db"].committed is False
 
 
 def test_cancelling_nonexistent_event_returns_404(setup_api):
@@ -286,6 +306,21 @@ def test_cancelling_nonexistent_event_returns_404(setup_api):
     response = client.post("/events/999/cancel")
 
     assert response.status_code == 404
+    assert state["db"].committed is False
+
+
+def test_completed_event_cannot_be_cancelled(setup_api):
+    client, state = setup_api
+    state["event"].status = "completed"
+
+    response = client.post("/events/10/cancel")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Completed events cannot be cancelled."
+    )
+    assert state["event"].status == "completed"
+    assert state["db"].committed is False
 
 
 def test_already_cancelled_event_returns_409(setup_api):
@@ -295,8 +330,10 @@ def test_already_cancelled_event_returns_409(setup_api):
     response = client.post("/events/10/cancel")
 
     assert response.status_code == 409
+    assert response.json()["detail"] == "Event is already cancelled"
     assert state["event"].status == "cancelled"
     assert state["db"].committed is False
+
 
 
 def test_invalid_cancel_event_id_is_rejected(setup_api):
@@ -306,3 +343,7 @@ def test_invalid_cancel_event_id_is_rejected(setup_api):
 
     assert response.status_code == 422
     assert state["event"].status == "draft"
+
+    # The endpoint must not commit changes for an invalid event ID.
+    if state["db"] is not None:
+        assert state["db"].committed is False
