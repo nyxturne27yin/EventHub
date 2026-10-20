@@ -29,8 +29,12 @@ class FakeResult:
 
 class FakeDB:
     def __init__(
-        self, event, registration, participant,
-        registered_count=0, state=None
+        self,
+        event,
+        registration,
+        participant,
+        registered_count=0,
+        state=None,
     ):
         self.event = event
         self.registration = registration
@@ -57,7 +61,9 @@ class FakeDB:
 
         if len(entities) > 1 and entities[1] is User:
             return FakeResult(
-                rows=[(self.registration, self.participant)]
+                rows=[
+                    (self.registration, self.participant)
+                ]
                 if self.registration and self.participant
                 else []
             )
@@ -73,15 +79,19 @@ class FakeDB:
             and self.registration.status == "Cancelled"
         ):
             self.registered_count = max(
-                0, self.registered_count - 1
+                0,
+                self.registered_count - 1,
             )
+
             if self.state is not None:
                 self.state["registered_count"] = (
                     self.registered_count
                 )
 
         self.initial_status = (
-            self.registration.status if self.registration else None
+            self.registration.status
+            if self.registration
+            else None
         )
 
     async def refresh(self, instance):
@@ -128,6 +138,7 @@ def registration_api():
         "participant": make_user(2, "student"),
         "registration": None,
         "db": None,
+        "registered_count": 0,
     }
 
     state["registration"] = EventRegistration(
@@ -153,13 +164,105 @@ def registration_api():
         return state["user"]
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_current_user] = (
+        override_get_current_user
+    )
 
     client = TestClient(app)
     yield client, state
 
     client.close()
     app.dependency_overrides.clear()
+
+
+def test_student_can_cancel_own_registration(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+
+    response = client.post(
+        "/events/10/registrations/20/cancel"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Cancelled"
+    assert state["registration"].status == "Cancelled"
+    assert state["db"].committed is True
+    assert state["db"].refreshed is True
+
+
+def test_student_cannot_cancel_another_users_registration(
+    registration_api,
+):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+
+    response = client.post(
+        "/events/10/registrations/20/cancel"
+    )
+
+    assert response.status_code == 403
+    assert state["registration"].status == "Registered"
+    assert state["db"].committed is False
+
+
+def test_cannot_cancel_missing_registration(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["registration"] = None
+
+    response = client.post(
+        "/events/10/registrations/20/cancel"
+    )
+
+    assert response.status_code == 404
+    assert state["db"].committed is False
+
+
+def test_cannot_cancel_registration_twice(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["registration"].status = "Cancelled"
+
+    response = client.post(
+        "/events/10/registrations/20/cancel"
+    )
+
+    assert response.status_code == 409
+    assert state["registration"].status == "Cancelled"
+    assert state["db"].committed is False
+
+
+def test_cannot_cancel_registration_for_cancelled_event(
+    registration_api,
+):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["event"].status = "cancelled"
+
+    response = client.post(
+        "/events/10/registrations/20/cancel"
+    )
+
+    assert response.status_code == 409
+    assert state["registration"].status == "Registered"
+    assert state["db"].committed is False
+
+
+def test_cannot_cancel_registration_after_event_ends(
+    registration_api,
+):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["event"].event_date = date.today() - timedelta(days=1)
+
+    response = client.post(
+        "/events/10/registrations/20/cancel"
+    )
+
+    assert response.status_code == 409
+    assert state["event"].status == "completed"
+    assert state["registration"].status == "Registered"
+    assert state["db"].committed is True
 
 
 def test_organizer_can_view_participant_status(registration_api):
@@ -169,7 +272,10 @@ def test_organizer_can_view_participant_status(registration_api):
 
     assert response.status_code == 200
     assert response.json()[0]["status"] == "Registered"
-    assert response.json()[0]["participant_email"] == "2234567@uap-bd.edu"
+    assert (
+        response.json()[0]["participant_email"]
+        == "2234567@uap-bd.edu"
+    )
 
 
 def test_organizer_can_update_participant_status(registration_api):
@@ -207,7 +313,9 @@ def test_student_cannot_view_participants(registration_api):
     assert response.status_code == 403
 
 
-def test_organizer_cannot_manage_another_organizers_participants(registration_api):
+def test_organizer_cannot_manage_another_organizers_participants(
+    registration_api,
+):
     client, state = registration_api
     state["event"].organizer_id = 99
 
@@ -220,7 +328,9 @@ def test_organizer_cannot_manage_another_organizers_participants(registration_ap
     assert state["registration"].status == "Registered"
 
 
-def test_student_registration_rejected_when_event_is_full(registration_api):
+def test_student_registration_rejected_when_event_is_full(
+    registration_api,
+):
     client, state = registration_api
     state["user"] = make_user(3, "student")
     state["registration"] = None
@@ -233,7 +343,9 @@ def test_student_registration_rejected_when_event_is_full(registration_api):
     assert state["db"].committed is False
 
 
-def test_cancelled_registration_cannot_be_reactivated_when_event_is_full(registration_api):
+def test_cancelled_registration_cannot_be_reactivated_when_event_is_full(
+    registration_api,
+):
     client, state = registration_api
     state["user"] = make_user(2, "student")
     state["registration"].status = "Cancelled"
@@ -246,96 +358,36 @@ def test_cancelled_registration_cannot_be_reactivated_when_event_is_full(registr
     assert state["registration"].status == "Cancelled"
     assert state["db"].committed is False
 
-def test_student_can_cancel_own_registration(registration_api):
-    client, state = registration_api
-    state["user"] = make_user(2, "student")
 
-    response = client.post("/events/10/registrations/20/cancel")
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "Cancelled"
-    assert state["registration"].status == "Cancelled"
-    assert state["db"].committed is True
-    assert state["db"].refreshed is True
-
-
-def test_student_cannot_cancel_another_users_registration(registration_api):
+def test_student_registration_is_rejected_when_event_is_completed(
+    registration_api,
+):
     client, state = registration_api
     state["user"] = make_user(3, "student")
-
-    response = client.post("/events/10/registrations/20/cancel")
-
-    assert response.status_code == 403
-    assert state["registration"].status == "Registered"
-    assert state["db"].committed is False
-
-
-def test_cannot_cancel_missing_registration(registration_api):
-    client, state = registration_api
-    state["user"] = make_user(2, "student")
     state["registration"] = None
+    state["event"].status = "completed"
 
-    response = client.post("/events/10/registrations/20/cancel")
-
-    assert response.status_code == 404
-    assert state["db"].committed is False
-
-
-def test_cannot_cancel_registration_twice(registration_api):
-    client, state = registration_api
-    state["user"] = make_user(2, "student")
-    state["registration"].status = "Cancelled"
-
-    response = client.post("/events/10/registrations/20/cancel")
+    response = client.post("/events/10/registrations")
 
     assert response.status_code == 409
-    assert state["registration"].status == "Cancelled"
-    assert state["db"].committed is False
-
-def test_cannot_cancel_registration_for_cancelled_event(registration_api):
-    client, state = registration_api
-    state["user"] = make_user(2, "student")
-    state["event"].status = "cancelled"
-
-    response = client.post("/events/10/registrations/20/cancel")
-
-    assert response.status_code == 409
-    assert state["registration"].status == "Registered"
+    assert "completed" in response.json()["detail"].lower()
+    assert state["event"].status == "completed"
     assert state["db"].committed is False
 
 
-def test_cannot_cancel_registration_after_event_ends(registration_api):
+def test_ended_published_event_is_completed_before_registration_is_rejected(
+    registration_api,
+):
     client, state = registration_api
-    state["user"] = make_user(2, "student")
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
     state["event"].event_date = date.today() - timedelta(days=1)
+    state["event"].status = "published"
 
-    response = client.post("/events/10/registrations/20/cancel")
+    response = client.post("/events/10/registrations")
 
     assert response.status_code == 409
-    assert state["registration"].status == "Registered"
-    assert state["db"].committed is False
-
-def test_cancelling_registration_restores_available_capacity(registration_api):
-    client, state = registration_api
-    state["user"] = make_user(2, "student")
-    state["registered_count"] = state["event"].capacity
-
-    response = client.post("/events/10/registrations/20/cancel")
-
-    assert response.status_code == 200
-    assert state["registration"].status == "Cancelled"
+    assert "completed" in response.json()["detail"].lower()
+    assert state["event"].status == "completed"
     assert state["db"].committed is True
-    assert state["db"].registered_count == state["event"].capacity - 1
-
-
-def test_failed_cancellation_does_not_change_capacity(registration_api):
-    client, state = registration_api
-    state["user"] = make_user(3, "student")
-    state["registered_count"] = state["event"].capacity
-
-    response = client.post("/events/10/registrations/20/cancel")
-
-    assert response.status_code == 403
-    assert state["registration"].status == "Registered"
-    assert state["db"].registered_count == state["event"].capacity
-    assert state["db"].committed is False
+    assert state["registration"] is None

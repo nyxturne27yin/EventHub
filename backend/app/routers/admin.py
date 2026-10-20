@@ -8,10 +8,16 @@ from sqlalchemy.orm import selectinload
 
 from app.database.database import get_db
 from app.dependencies.auth import require_role
-from app.event_status import can_transition_event_status
 from app.models.event import Event
 from app.models.role import Role
 from app.models.user import User
+from app.services.event_lifecycle import (
+    can_transition_event_status,
+    complete_event_if_due,
+    complete_finished_events,
+    event_has_ended,
+    local_now,
+)
 
 
 router = APIRouter(
@@ -42,9 +48,13 @@ class EventStatusUpdateRequest(BaseModel):
 
 @router.get("/dashboard")
 async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
+    await complete_finished_events(db)
+
     total_users = await db.scalar(select(func.count()).select_from(User))
     active_users = await db.scalar(
-        select(func.count()).select_from(User).where(User.is_active.is_(True))
+        select(func.count())
+        .select_from(User)
+        .where(User.is_active.is_(True))
     )
     total_events = await db.scalar(select(func.count()).select_from(Event))
 
@@ -75,7 +85,9 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
 @router.get("/users")
 async def list_users(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(User).options(selectinload(User.role)).order_by(User.id)
+        select(User)
+        .options(selectinload(User.role))
+        .order_by(User.id)
     )
 
     return [
@@ -155,6 +167,8 @@ async def update_user(
 
 @router.get("/events")
 async def list_all_events(db: AsyncSession = Depends(get_db)):
+    await complete_finished_events(db)
+
     result = await db.execute(
         select(Event)
         .options(selectinload(Event.organizer))
@@ -193,28 +207,52 @@ async def update_event_status(
             detail="Event not found",
         )
 
+    now = local_now()
+    await complete_event_if_due(db, event, now)
+
     current_status = (event.status or "").strip().lower()
     requested_status = payload.status
 
+    # Completion is idempotent: a repeated request does not create another
+    # transition or side effect once the event is already completed.
     if current_status == requested_status:
+        if requested_status == "completed":
+            return {
+                "message": "Event is already completed",
+                "event_id": event.id,
+                "status": event.status,
+            }
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Event is already {requested_status}.",
         )
 
-    if not can_transition_event_status(
-        current_status,
-        requested_status,
-    ):
+    if not can_transition_event_status(current_status, requested_status):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Cannot change event status from "
-                f"{current_status} to {requested_status}."
+                f"Cannot change event status from {current_status} "
+                f"to {requested_status}."
             ),
         )
 
+    if requested_status == "completed" and not event_has_ended(event, now):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "An event can only be completed after its end date and time."
+            ),
+        )
+
+    if requested_status == "published" and event_has_ended(event, now):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An event that has already ended cannot be published.",
+        )
+
     event.status = requested_status
+    event.updated_at = now
 
     await db.commit()
     await db.refresh(event)

@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, datetime, time, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -29,8 +30,16 @@ class FakeDB:
         self.refresh = AsyncMock()
 
 
+
 def make_event(status="draft"):
-    return SimpleNamespace(id=1, status=status)
+    return SimpleNamespace(
+        id=1,
+        status=status,
+        event_date=date.today() + timedelta(days=1),
+        end_time=time(23, 59),
+        updated_at=None,
+    )
+
 
 
 @pytest.mark.parametrize(
