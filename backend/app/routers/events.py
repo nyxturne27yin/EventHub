@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -10,6 +10,11 @@ from app.models.event import Event
 from app.models.registration import EventRegistration
 from app.models.organizer_profile import OrganizerProfile
 from app.models.user import User
+from app.services.event_lifecycle import (
+    complete_event_if_due,
+    complete_finished_events,
+    local_now,
+)
 from app.schemas.event import (
     EventCreateRequest,
     EventSearchItem,
@@ -17,11 +22,6 @@ from app.schemas.event import (
 )
 
 router = APIRouter(prefix="/events", tags=["Events"])
-
-
-def normalize_event_status(event: Event) -> str:
-    """Return an event's status in normalized form."""
-    return (event.status or "").strip().lower()
 
 
 async def event_search_item_with_organizer(
@@ -106,10 +106,20 @@ async def list_events(
     search: str | None = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """List published events scheduled for today or a future date."""
+    now = local_now()
+    await complete_finished_events(db, now)
+
+    # Status and end-time filters both protect discovery if a legacy row has
+    # not yet been refreshed by another request.
     statement = select(Event).where(
         Event.status == "published",
-        Event.event_date >= date.today(),
+        or_(
+            Event.event_date > now.date(),
+            and_(
+                Event.event_date == now.date(),
+                Event.end_time > now.time(),
+            ),
+        ),
     )
     search_text = search.strip() if search else ""
 
@@ -132,7 +142,6 @@ async def list_events(
     events = result.scalars().all()
 
     event_items = []
-
     for event in events:
         count_result = await db.execute(
             select(func.count(EventRegistration.id)).where(
@@ -140,7 +149,6 @@ async def list_events(
                 EventRegistration.status == "Registered",
             )
         )
-
         item = await event_search_item_with_organizer(event, db)
         item["registered_count"] = count_result.scalar_one()
         event_items.append(item)
@@ -153,16 +161,21 @@ async def get_event_details(
     event_id: int = Path(gt=0),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return public details for a published event or its cancellation notice."""
-    result = await db.execute(
-        select(Event).where(
-            Event.id == event_id,
-            Event.status.in_(("published", "cancelled")),
-        )
-    )
+    """Return public details for a published, cancelled, or completed event."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalar_one_or_none()
 
     if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    await complete_event_if_due(db, event)
+
+    if (event.status or "").strip().lower() not in {
+        "published", "cancelled", "completed"
+    }:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found",
@@ -174,10 +187,8 @@ async def get_event_details(
             EventRegistration.status == "Registered",
         )
     )
-
     item = await event_search_item_with_organizer(event, db)
     item["registered_count"] = count_result.scalar_one()
-
     return item
 
 
@@ -214,14 +225,14 @@ async def update_event(
             detail="You can only update your own events",
         )
 
-    current_status = normalize_event_status(event)
+    await complete_event_if_due(db, event)
 
+    current_status = (event.status or "").strip().lower()
     if current_status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cancelled events cannot be updated",
         )
-
     if current_status == "completed":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -313,7 +324,10 @@ async def update_event(
 
     event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    await db.commit()
+    # If an edit changes the event's end time into the past, persist its
+    # Completed status in the same request rather than waiting for another read.
+    if not await complete_event_if_due(db, event):
+        await db.commit()
     await db.refresh(event)
 
     return {
@@ -370,7 +384,8 @@ async def cancel_event(
             detail="You can only cancel your own events",
         )
 
-    current_status = normalize_event_status(event)
+    await complete_event_if_due(db, event)
+    current_status = (event.status or "").strip().lower()
 
     if current_status == "completed":
         raise HTTPException(

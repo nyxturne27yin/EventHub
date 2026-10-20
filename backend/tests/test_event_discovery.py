@@ -32,6 +32,7 @@ class FakeDB:
         self.event = event
         self.events = events or []
         self.profile = profile
+        self.committed = False
 
     async def execute(self, query):
         # Return the correct fake row for event or organizer-profile queries.
@@ -41,9 +42,28 @@ class FakeDB:
             return FakeResult(event=self.profile)
 
         if entity is Event:
+            query_text = str(query).lower()
+            if "events.status =" in query_text and "lower(events.status)" not in query_text:
+                now = datetime.now()
+                upcoming = [
+                    event
+                    for event in self.events
+                    if (event.status or "").lower() == "published"
+                    and (
+                        event.event_date > now.date()
+                        or (
+                            event.event_date == now.date()
+                            and event.end_time > now.time()
+                        )
+                    )
+                ]
+                return FakeResult(event=self.event, events=upcoming)
             return FakeResult(event=self.event, events=self.events)
 
         return FakeResult()
+
+    async def commit(self):
+        self.committed = True
 
 
 def make_event(event_id=5, status="published"):
@@ -173,6 +193,47 @@ def test_event_list_includes_organizer_profile():
         assert len(payload) == 1
         assert payload[0]["organization_name"] == "Programming Club"
         assert payload[0]["department"] == "Computer Science"
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+def test_completed_event_details_remain_available():
+    client = make_client(event=make_event(status="completed"))
+    try:
+        response = client.get("/events/5")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "completed"
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+
+def test_ended_published_event_is_marked_completed_on_detail_access():
+    event = make_event(status="published")
+    event.event_date = date.today() - timedelta(days=1)
+    client = make_client(event=event)
+    try:
+        response = client.get("/events/5")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "completed"
+        assert event.status == "completed"
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+
+def test_completed_events_are_excluded_from_upcoming_discovery():
+    published_event = make_event(event_id=5, status="published")
+    completed_event = make_event(event_id=6, status="completed")
+    client = make_client(events=[published_event, completed_event])
+    try:
+        response = client.get("/events/")
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()] == [5]
+        assert all(item["status"] == "published" for item in response.json())
     finally:
         client.close()
         app.dependency_overrides.clear()

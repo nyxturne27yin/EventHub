@@ -10,6 +10,7 @@ from app.models.event import Event
 from app.models.registration import EventRegistration
 from app.models.user import User
 from app.schemas.registration import RegistrationStatusUpdate
+from app.services.event_lifecycle import complete_event_if_due
 
 router = APIRouter(tags=["Event Registrations"])
 
@@ -26,17 +27,42 @@ async def register_for_event(
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalar_one_or_none()
 
-    if event is None or event.status != "published":
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    await complete_event_if_due(db, event)
+
+    event_status = (event.status or "").strip().lower()
+
+    if event_status == "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Registration is closed because this event is completed",
+        )
+
+    if event_status == "cancelled":
+        raise HTTPException(
+            status_code=409,
+            detail="Registration is closed because this event is cancelled",
+        )
+
+    if event_status != "published":
         raise HTTPException(status_code=404, detail="Published event not found")
 
     now = datetime.now()
     event_start = datetime.combine(event.event_date, event.start_time)
 
     if event.registration_deadline <= now:
-        raise HTTPException(status_code=409, detail="Registration deadline has passed")
+        raise HTTPException(
+            status_code=409,
+            detail="Registration deadline has passed",
+        )
 
     if event_start <= now:
-        raise HTTPException(status_code=409, detail="Event has already started")
+        raise HTTPException(
+            status_code=409,
+            detail="Event has already started",
+        )
 
     existing = await db.execute(
         select(EventRegistration).where(
@@ -81,7 +107,10 @@ async def register_for_event(
     registered_count = count_result.scalar_one()
 
     if registered_count >= event.capacity:
-        raise HTTPException(status_code=409, detail="Event capacity is full")
+        raise HTTPException(
+            status_code=409,
+            detail="Event capacity is full",
+        )
 
     registration = EventRegistration(
         event_id=event_id,
@@ -115,13 +144,25 @@ async def cancel_registration(
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    if event.status.lower() == "cancelled":
+    # Apply EV-110 lifecycle rules before allowing cancellation.
+    await complete_event_if_due(db, event)
+
+    event_status = (event.status or "").strip().lower()
+
+    if event_status == "cancelled":
         raise HTTPException(
             status_code=409,
             detail="Cannot cancel registration for a cancelled event",
         )
 
+    if event_status == "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot cancel registration after the event has ended",
+        )
+
     event_end = datetime.combine(event.event_date, event.end_time)
+
     if event_end <= datetime.now():
         raise HTTPException(
             status_code=409,
@@ -185,6 +226,8 @@ async def list_event_participants(
             detail="You can only view participants for your own events",
         )
 
+    await complete_event_if_due(db, event)
+
     result = await db.execute(
         select(EventRegistration, User)
         .join(User, User.id == EventRegistration.participant_id)
@@ -225,6 +268,17 @@ async def update_registration_status(
             detail="You can only manage participants for your own events",
         )
 
+    await complete_event_if_due(db, event)
+
+    if (event.status or "").strip().lower() in {"completed", "cancelled"}:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Registration statuses cannot be changed for completed "
+                "or cancelled events"
+            ),
+        )
+
     result = await db.execute(
         select(EventRegistration).where(
             EventRegistration.id == registration_id,
@@ -234,9 +288,13 @@ async def update_registration_status(
     registration = result.scalar_one_or_none()
 
     if registration is None:
-        raise HTTPException(status_code=404, detail="Registration not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Registration not found",
+        )
 
     registration.status = payload.status
+
     await db.commit()
     await db.refresh(registration)
 
