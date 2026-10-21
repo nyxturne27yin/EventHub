@@ -104,7 +104,7 @@ class EventCreateRequest(BaseModel):
     # Omitted or null capacity means unlimited capacity.
     capacity: StrictInt | None = Field(default=None, gt=0)
     registration_deadline: datetime
-    status: Literal["draft", "published"] = "draft"
+    status: Literal["draft"] = "draft"
 
     @field_validator("title", "description", "category")
     @classmethod
