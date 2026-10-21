@@ -194,3 +194,63 @@ if (retryButton) {
 }
 
 loadDetails();
+
+// Event registration
+const registerButton = document.getElementById("registerForEvent");
+const registrationMessage = document.getElementById("registrationMessage");
+
+if (registerButton) {
+    registerButton.addEventListener("click", async function () {
+        if (!eventId) return;
+
+        const token = sessionStorage.getItem("access_token");
+
+        if (!token) {
+            if (registrationMessage) {
+                registrationMessage.textContent = "Please log in before registering for an event.";
+                registrationMessage.className = "alert alert-warning mt-4";
+            }
+            return;
+        }
+
+        registerButton.disabled = true;
+        registerButton.textContent = "Registering...";
+
+        try {
+            const response = await fetch(
+                EVENTS_API_URL + encodeURIComponent(eventId) + "/registrations",
+                {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Accept": "application/json"
+                    }
+                }
+            );
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    typeof data.detail === "string"
+                        ? data.detail
+                        : "Registration failed. Please try again."
+                );
+            }
+
+            if (registrationMessage) {
+                registrationMessage.textContent = "Registration successful! Your registration ID is " + data.id + ".";
+                registrationMessage.className = "alert alert-success mt-4";
+            }
+
+            registerButton.textContent = "Registered";
+        } catch (error) {
+            if (registrationMessage) {
+                registrationMessage.textContent = error.message || "Could not complete registration.";
+                registrationMessage.className = "alert alert-danger mt-4";
+            }
+            registerButton.disabled = false;
+            registerButton.textContent = "Register for Event";
+        }
+    });
+}
