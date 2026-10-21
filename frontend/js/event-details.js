@@ -1,3 +1,4 @@
+
 const EVENTS_API_URL = "http://127.0.0.1:8000/events/";
 
 const params = new URLSearchParams(window.location.search);
@@ -8,6 +9,10 @@ const loading = document.getElementById("detailsLoading");
 const errorBox = document.getElementById("detailsError");
 const retryButton = document.getElementById("retryDetails");
 const details = document.getElementById("eventDetails");
+const registerButton = document.getElementById("registerForEvent");
+const registrationMessage = document.getElementById("registrationMessage");
+
+let currentEventData = null;
 
 function setText(id, value) {
     const element = document.getElementById(id);
@@ -48,16 +53,71 @@ function formatTime(value) {
 }
 
 function getAvailability(event) {
-    if ((event.status || "").toLowerCase() === "cancelled") {
+    const status = (event.status || "").trim().toLowerCase();
+
+    if (status === "cancelled") {
         return "Cancelled - registration is unavailable.";
     }
-    if (event.registration_deadline && new Date(event.registration_deadline) <= new Date()) {
+
+    if (status === "completed") {
+        return "Completed - registration is unavailable.";
+    }
+
+    if (
+        event.registration_deadline &&
+        new Date(event.registration_deadline) <= new Date()
+    ) {
         return "Registration closed - the deadline has passed.";
     }
-    if (Number(event.capacity) > 0 && Number(event.registered_count || 0) >= Number(event.capacity)) {
+
+    if (
+        Number(event.capacity) > 0 &&
+        Number(event.registered_count || 0) >= Number(event.capacity)
+    ) {
         return "Full - participant capacity has been reached.";
     }
+
     return "Registration open.";
+}
+
+function updateRegistrationButton(event) {
+    if (!registerButton) return;
+
+    if (!event) {
+        registerButton.disabled = true;
+        return;
+    }
+
+    const status = (event.status || "").trim().toLowerCase();
+
+    const isCancelled = status === "cancelled";
+    const isCompleted = status === "completed";
+
+    const deadlinePassed =
+        Boolean(event.registration_deadline) &&
+        !Number.isNaN(new Date(event.registration_deadline).getTime()) &&
+        new Date(event.registration_deadline) <= new Date();
+
+    const isFull =
+        Number(event.capacity) > 0 &&
+        Number(event.registered_count || 0) >= Number(event.capacity);
+
+    if (isCancelled) {
+        registerButton.disabled = true;
+        registerButton.textContent = "Event Cancelled";
+    } else if (isCompleted) {
+        registerButton.disabled = true;
+        registerButton.textContent = "Event Completed";
+    } else if (deadlinePassed) {
+        registerButton.disabled = true;
+        registerButton.textContent = "Registration Closed";
+    } else if (isFull) {
+        registerButton.disabled = true;
+        registerButton.textContent = "Event Full";
+    } else {
+        registerButton.disabled = false;
+        registerButton.textContent = "Register for Event";
+    }
 }
 
 async function loadDetails() {
@@ -72,6 +132,10 @@ async function loadDetails() {
     errorBox.classList.add("d-none");
     retryButton.classList.add("d-none");
     details.classList.add("d-none");
+
+    if (registerButton) {
+        registerButton.disabled = true;
+    }
 
     if (!eventId) {
         loading.classList.add("d-none");
@@ -111,6 +175,8 @@ async function loadDetails() {
             );
         }
 
+        currentEventData = data;
+
         setText("detailTitle", data.title || "Untitled Event");
         setText("detailCategory", data.category || "General");
         setText("detailMode", data.mode || "Mode not specified");
@@ -130,6 +196,7 @@ async function loadDetails() {
             "detailOrganization",
             data.organization_name || "Not specified"
         );
+
         setText(
             "detailDepartment",
             data.department || "Not specified"
@@ -163,16 +230,23 @@ async function loadDetails() {
 
         setText("detailAvailability", getAvailability(data));
 
-        const status = (data.status || "").toLowerCase();
+        const status = (data.status || "").trim().toLowerCase();
         const badge = document.getElementById("detailStatus");
 
         if (badge) {
-            badge.className =
-                "badge " +
-                (status === "cancelled"
-                    ? "text-bg-danger"
-                    : "text-bg-success");
+            let badgeStyle = "text-bg-success";
+
+            if (status === "cancelled") {
+                badgeStyle = "text-bg-danger";
+            } else if (status === "completed") {
+                badgeStyle = "text-bg-secondary";
+            }
+
+            badge.className = "badge " + badgeStyle;
         }
+
+        // Disable registration when the event cannot accept registrations.
+        updateRegistrationButton(data);
 
         loading.classList.add("d-none");
         details.classList.remove("d-none");
@@ -185,6 +259,10 @@ async function loadDetails() {
         errorBox.classList.remove("d-none");
         retryButton.classList.remove("d-none");
 
+        if (registerButton) {
+            registerButton.disabled = true;
+        }
+
         console.error("Failed to load event details:", error);
     }
 }
@@ -196,18 +274,40 @@ if (retryButton) {
 loadDetails();
 
 // Event registration
-const registerButton = document.getElementById("registerForEvent");
-const registrationMessage = document.getElementById("registrationMessage");
-
 if (registerButton) {
     registerButton.addEventListener("click", async function () {
-        if (!eventId) return;
+        if (!eventId || registerButton.disabled) return;
+
+        const status = (currentEventData?.status || "").trim().toLowerCase();
+
+        if (status === "cancelled") {
+            if (registrationMessage) {
+                registrationMessage.textContent =
+                    "This event has been cancelled. Registration is unavailable.";
+                registrationMessage.className = "alert alert-danger mt-4";
+            }
+
+            updateRegistrationButton(currentEventData);
+            return;
+        }
+
+        if (status === "completed") {
+            if (registrationMessage) {
+                registrationMessage.textContent =
+                    "This event has been completed. Registration is unavailable.";
+                registrationMessage.className = "alert alert-danger mt-4";
+            }
+
+            updateRegistrationButton(currentEventData);
+            return;
+        }
 
         const token = sessionStorage.getItem("access_token");
 
         if (!token) {
             if (registrationMessage) {
-                registrationMessage.textContent = "Please log in before registering for an event.";
+                registrationMessage.textContent =
+                    "Please log in before registering for an event.";
                 registrationMessage.className = "alert alert-warning mt-4";
             }
             return;
@@ -218,12 +318,14 @@ if (registerButton) {
 
         try {
             const response = await fetch(
-                EVENTS_API_URL + encodeURIComponent(eventId) + "/registrations",
+                EVENTS_API_URL +
+                    encodeURIComponent(eventId) +
+                    "/registrations",
                 {
                     method: "POST",
                     headers: {
-                        "Authorization": "Bearer " + token,
-                        "Accept": "application/json"
+                        Authorization: "Bearer " + token,
+                        Accept: "application/json"
                     }
                 }
             );
@@ -239,18 +341,24 @@ if (registerButton) {
             }
 
             if (registrationMessage) {
-                registrationMessage.textContent = "Registration successful! Your registration ID is " + data.id + ".";
+                registrationMessage.textContent =
+                    "Registration successful! Your registration ID is " +
+                    data.id +
+                    ".";
                 registrationMessage.className = "alert alert-success mt-4";
             }
 
+            registerButton.disabled = true;
             registerButton.textContent = "Registered";
         } catch (error) {
             if (registrationMessage) {
-                registrationMessage.textContent = error.message || "Could not complete registration.";
+                registrationMessage.textContent =
+                    error.message || "Could not complete registration.";
                 registrationMessage.className = "alert alert-danger mt-4";
             }
-            registerButton.disabled = false;
-            registerButton.textContent = "Register for Event";
+
+            // Restore the correct state instead of always enabling the button.
+            updateRegistrationButton(currentEventData);
         }
     });
 }
