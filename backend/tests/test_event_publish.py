@@ -93,14 +93,14 @@ def teardown(client):
     app.dependency_overrides.clear()
 
 
-def test_owner_can_publish_draft_and_status_is_persisted():
+def test_owner_can_submit_draft_for_approval():
     event = make_event()
     client, state = setup_client(event)
     try:
         response = client.post("/events/7/publish")
         assert response.status_code == 200
-        assert response.json()["event"]["status"] == "published"
-        assert event.status == "published"
+        assert response.json()["event"]["status"] == "pending_approval"
+        assert event.status == "pending_approval"
         assert state["db"].committed
         assert state["db"].refreshed
     finally:

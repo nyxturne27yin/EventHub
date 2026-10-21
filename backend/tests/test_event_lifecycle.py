@@ -138,8 +138,14 @@ def test_bulk_completion_preserves_cancelled_and_future_events_and_is_idempotent
 
 
 def test_status_transition_matrix_keeps_cancelled_and_completed_terminal():
-    assert can_transition_event_status("draft", "published")
+    assert can_transition_event_status("draft", "pending_approval")
+    assert can_transition_event_status("pending_approval", "published")
+    assert can_transition_event_status("pending_approval", "draft")
     assert can_transition_event_status("published", "cancelled")
+    assert can_transition_event_status("published", "completed")
+
+    assert not can_transition_event_status("draft", "published")
+    assert not can_transition_event_status("draft", "completed")
+    assert not can_transition_event_status("pending_approval", "cancelled")
     assert not can_transition_event_status("cancelled", "published")
     assert not can_transition_event_status("completed", "cancelled")
-    assert not can_transition_event_status("draft", "completed")

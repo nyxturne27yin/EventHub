@@ -271,13 +271,13 @@ async def publish_event(
             detail="Mode must be Online or Offline",
         )
 
-    event.status = "published"
+    event.status = "pending_approval"
     event.updated_at = now
     await db.commit()
     await db.refresh(event)
 
     return {
-        "message": "Event published successfully",
+       "message": "Event submitted for approval",
         "event": {
             "id": event.id,
             "title": event.title,
@@ -334,6 +334,11 @@ async def update_event(
     await complete_event_if_due(db, event)
 
     current_status = (event.status or "").strip().lower()
+    if current_status == "pending_approval":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Events pending approval cannot be updated",
+        )
     if current_status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

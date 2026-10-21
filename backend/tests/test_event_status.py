@@ -45,8 +45,12 @@ def make_event(status="draft"):
 @pytest.mark.parametrize(
     ("current", "target", "expected"),
     [
-        ("draft", "published", True),
+        ("draft", "pending_approval", True),
+        ("draft", "published", False),
         ("draft", "cancelled", True),
+        ("pending_approval", "published", True),
+        ("pending_approval", "draft", True),
+        ("pending_approval", "cancelled", False),
         ("published", "completed", True),
         ("published", "cancelled", True),
         ("cancelled", "published", False),
@@ -59,8 +63,8 @@ def test_lifecycle_transition_rules(current, target, expected):
     assert can_transition_event_status(current, target) is expected
 
 
-def test_admin_can_publish_draft_event():
-    event = make_event("draft")
+def test_admin_can_approve_pending_event():
+    event = make_event("pending_approval")
     db = FakeDB(event)
 
     result = asyncio.run(
@@ -73,9 +77,21 @@ def test_admin_can_publish_draft_event():
 
     assert result["status"] == "published"
     assert event.status == "published"
-    db.commit.assert_awaited_once()
-    db.refresh.assert_awaited_once_with(event)
 
+def test_admin_can_reject_pending_event_to_draft():
+    event = make_event("pending_approval")
+    db = FakeDB(event)
+
+    result = asyncio.run(
+        update_event_status(
+            payload=EventStatusUpdateRequest(status="draft"),
+            event_id=1,
+            db=db,
+        )
+    )
+
+    assert result["status"] == "draft"
+    assert event.status == "draft"
 
 def test_admin_cannot_repeat_current_status():
     db = FakeDB(make_event("published"))

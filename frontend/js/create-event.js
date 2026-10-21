@@ -134,7 +134,7 @@ form.addEventListener("submit", async (event) => {
             const publishButton = document.createElement("button");
             publishButton.type = "button";
             publishButton.className = "btn btn-success";
-            publishButton.textContent = "Publish this event";
+            publishButton.textContent = "Submit for approval";
             publishButton.addEventListener("click", async () => {
                 publishButton.disabled = true;
                 publishButton.textContent = "Publishing...";
@@ -150,7 +150,7 @@ form.addEventListener("submit", async (event) => {
                             ? detail.map(item => item.msg).join(", ")
                             : (detail || "Could not publish the event."));
                     }
-                    showMessage("Event published successfully and is eligible for Event Discovery.", "success");
+                    showMessage("Event submitted for approval. It will appear in Event Discovery after an administrator approves it.", "success");
                     publishButton.textContent = "Published";
                     publishButton.classList.remove("btn-success");
                     publishButton.classList.add("btn-outline-success");

@@ -43,7 +43,14 @@ class UserUpdateRequest(BaseModel):
 class EventStatusUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["draft", "published", "cancelled", "completed"]
+    status: Literal[
+        "draft",
+        "pending_approval",
+        "published",
+        "cancelled",
+        "completed",
+    ]
+
 
 
 @router.get("/dashboard")
