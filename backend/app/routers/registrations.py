@@ -1,3 +1,4 @@
+
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
+from app.models.notification import Notification
 from app.models.registration import EventRegistration
 from app.models.user import User
 from app.schemas.registration import RegistrationStatusUpdate
@@ -27,16 +29,25 @@ async def register_for_event(
     event = result.scalar_one_or_none()
 
     if event is None or event.status != "published":
-        raise HTTPException(status_code=404, detail="Published event not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Published event not found",
+        )
 
     now = datetime.now()
     event_start = datetime.combine(event.event_date, event.start_time)
 
     if event.registration_deadline <= now:
-        raise HTTPException(status_code=409, detail="Registration deadline has passed")
+        raise HTTPException(
+            status_code=409,
+            detail="Registration deadline has passed",
+        )
 
     if event_start <= now:
-        raise HTTPException(status_code=409, detail="Event has already started")
+        raise HTTPException(
+            status_code=409,
+            detail="Event has already started",
+        )
 
     existing = await db.execute(
         select(EventRegistration).where(
@@ -48,10 +59,30 @@ async def register_for_event(
 
     if registration is not None:
         if registration.status == "Registered":
-            raise HTTPException(status_code=409, detail="Already registered for this event")
+            raise HTTPException(
+                status_code=409,
+                detail="Already registered for this event",
+            )
+
         registration.status = "Registered"
+
+        notification = Notification(
+            user_id=current_user.id,
+            event_id=event.id,
+            title="Registration Successful",
+            message=(
+                f"Your registration for '{event.title}' is confirmed. "
+                f"Date: {event.event_date}, "
+                f"Time: {event.start_time}, "
+                f"Venue/Mode: {event.venue or event.mode}. "
+                f"Status: Registered."
+            ),
+        )
+        db.add(notification)
+
         await db.commit()
         await db.refresh(registration)
+
         return {
             "id": registration.id,
             "event_id": registration.event_id,
@@ -68,7 +99,10 @@ async def register_for_event(
     registered_count = count_result.scalar_one()
 
     if registered_count >= event.capacity:
-        raise HTTPException(status_code=409, detail="Event capacity is full")
+        raise HTTPException(
+            status_code=409,
+            detail="Event capacity is full",
+        )
 
     registration = EventRegistration(
         event_id=event_id,
@@ -76,6 +110,21 @@ async def register_for_event(
         status="Registered",
     )
     db.add(registration)
+
+    notification = Notification(
+        user_id=current_user.id,
+        event_id=event.id,
+        title="Registration Successful",
+        message=(
+            f"Your registration for '{event.title}' is confirmed. "
+            f"Date: {event.event_date}, "
+            f"Time: {event.start_time}, "
+            f"Venue/Mode: {event.venue or event.mode}. "
+            f"Status: Registered."
+        ),
+    )
+    db.add(notification)
+
     await db.commit()
     await db.refresh(registration)
 
@@ -100,7 +149,10 @@ async def list_event_participants(
         raise HTTPException(status_code=404, detail="Event not found")
 
     if event.organizer_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only view participants for your own events")
+        raise HTTPException(
+            status_code=403,
+            detail="You can only view participants for your own events",
+        )
 
     result = await db.execute(
         select(EventRegistration, User)
@@ -137,7 +189,10 @@ async def update_registration_status(
         raise HTTPException(status_code=404, detail="Event not found")
 
     if event.organizer_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only manage participants for your own events")
+        raise HTTPException(
+            status_code=403,
+            detail="You can only manage participants for your own events",
+        )
 
     result = await db.execute(
         select(EventRegistration).where(
