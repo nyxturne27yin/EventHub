@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
 
-
 ALLOWED_EVENT_STATUS_TRANSITIONS = {
-    "draft": {"published", "cancelled"},
+    "draft": {"pending_approval", "cancelled"},
+    "pending_approval": {"published", "draft"},
     "published": {"cancelled", "completed"},
     "cancelled": set(),
     "completed": set(),

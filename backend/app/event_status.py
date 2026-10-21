@@ -1,7 +1,9 @@
+
 """Allowed lifecycle transitions for EventHub events."""
 
 ALLOWED_EVENT_STATUS_TRANSITIONS = {
-    "draft": {"published", "cancelled"},
+    "draft": {"pending_approval", "cancelled"},
+    "pending_approval": {"published", "draft"},
     "published": {"completed", "cancelled"},
     "cancelled": set(),
     "completed": set(),

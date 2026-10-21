@@ -324,6 +324,23 @@ def test_invalid_cancel_event_id_is_rejected(setup_api):
     assert state["db"].committed is False
 
 
+def test_pending_approval_event_cannot_be_updated(setup_api):
+    client, state = setup_api
+    state["event"].status = "pending_approval"
+
+    response = client.patch(
+        "/events/10",
+        json=valid_update(),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Events pending approval cannot be updated"
+    )
+    assert state["event"].title == "Original Event"
+    assert state["db"].committed is False
+
+
 def test_completed_event_cannot_be_updated(setup_api):
     client, state = setup_api
     state["event"].status = "completed"

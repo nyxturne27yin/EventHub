@@ -210,9 +210,9 @@ async function loadEvents() {
 
         const actionCell = document.createElement("td");
         const statusSelect = createSelect(
-            ["draft", "published", "cancelled", "completed"],
+            ["draft", "pending_approval", "published", "cancelled", "completed"],
             event.status
-        );
+      );
 
         const saveButton = createButton("Update", async () => {
             saveButton.disabled = true;
