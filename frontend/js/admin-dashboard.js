@@ -59,7 +59,7 @@ function formatDate(value) {
 
 function createCell(value) {
     const cell = document.createElement("td");
-    cell.textContent = value ?? "—";
+    cell.textContent = value ?? "â€”";
     return cell;
 }
 
@@ -136,6 +136,7 @@ async function loadUsers() {
 
         row.appendChild(createCell(user.name));
         row.appendChild(createCell(user.email));
+        row.appendChild(createCell(formatDate(user.created_at)));
 
         const roleCell = document.createElement("td");
         const roleSelect = createSelect(
@@ -317,4 +318,3 @@ document.getElementById("refreshEvents")?.addEventListener("click", async () => 
 });
 
 initializeDashboard();
-
