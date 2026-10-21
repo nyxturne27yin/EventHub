@@ -13,6 +13,7 @@ from app.models.user import User
 from app.services.event_lifecycle import (
     complete_event_if_due,
     complete_finished_events,
+    event_has_ended,
     local_now,
 )
 from app.schemas.event import (
@@ -190,6 +191,111 @@ async def get_event_details(
     item = await event_search_item_with_organizer(event, db)
     item["registered_count"] = count_result.scalar_one()
     return item
+
+
+@router.post("/{event_id}/publish")
+async def publish_event(
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    """Publish an eligible draft owned by the authenticated organizer."""
+    if (
+        current_user.role is None
+        or current_user.role.name.strip().lower() != "organizer"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organizers can publish events",
+        )
+
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    if event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only publish events you manage",
+        )
+
+    await complete_event_if_due(db, event)
+    current_status = (event.status or "").strip().lower()
+    if current_status != "draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Only draft events can be published; current status is '{current_status}'.",
+        )
+
+    now = local_now()
+    if event_has_ended(event, now):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An event that has already ended cannot be published.",
+        )
+    for field_name in ("title", "description", "category"):
+        if not (getattr(event, field_name, None) or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{field_name.capitalize()} cannot be empty",
+            )
+    if event.end_time <= event.start_time:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="End time must be after start time",
+        )
+    event_start = datetime.combine(event.event_date, event.start_time)
+    deadline = event.registration_deadline
+    if deadline is None or deadline.tzinfo is not None or deadline >= event_start:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Registration deadline must be a local date and time before the event starts",
+        )
+    if event.mode == "Offline" and not (event.venue or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Venue is required for offline events",
+        )
+    if event.mode == "Online" and not (event.meeting_link or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Meeting link is required for online events",
+        )
+    if event.mode not in {"Online", "Offline"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Mode must be Online or Offline",
+        )
+
+    event.status = "published"
+    event.updated_at = now
+    await db.commit()
+    await db.refresh(event)
+
+    return {
+        "message": "Event published successfully",
+        "event": {
+            "id": event.id,
+            "title": event.title,
+            "description": event.description,
+            "category": event.category,
+            "event_date": event.event_date,
+            "start_time": event.start_time,
+            "end_time": event.end_time,
+            "mode": event.mode,
+            "venue": event.venue,
+            "meeting_link": event.meeting_link,
+            "capacity": event.capacity,
+            "registration_deadline": event.registration_deadline,
+            "status": event.status,
+            "organizer_id": event.organizer_id,
+            "updated_at": event.updated_at,
+        },
+    }
 
 
 @router.patch("/{event_id}")

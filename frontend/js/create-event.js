@@ -7,6 +7,7 @@ const modeInput = document.getElementById("mode");
 const venueInput = document.getElementById("venue");
 const meetingLinkInput = document.getElementById("meeting_link");
 const submitButton = document.getElementById("submitButton");
+const postCreateActions = document.getElementById("postCreateActions");
 
 function showMessage(message, type = "danger") {
     messageBox.textContent = message;
@@ -124,7 +125,43 @@ form.addEventListener("submit", async (event) => {
             throw new Error(errorMessage);
         }
 
-        showMessage("Event created successfully!", "success");
+        const createdEvent = result.event;
+        showMessage("Event created successfully as a draft.", "success");
+        postCreateActions.replaceChildren();
+        postCreateActions.classList.remove("d-none");
+
+        if (createdEvent && createdEvent.id) {
+            const publishButton = document.createElement("button");
+            publishButton.type = "button";
+            publishButton.className = "btn btn-success";
+            publishButton.textContent = "Publish this event";
+            publishButton.addEventListener("click", async () => {
+                publishButton.disabled = true;
+                publishButton.textContent = "Publishing...";
+                try {
+                    const publishResponse = await fetch(
+                        `${API_BASE_URL}/events/${encodeURIComponent(createdEvent.id)}/publish`,
+                        { method: "POST", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
+                    );
+                    const publishResult = await publishResponse.json().catch(() => null);
+                    if (!publishResponse.ok) {
+                        const detail = publishResult?.detail;
+                        throw new Error(Array.isArray(detail)
+                            ? detail.map(item => item.msg).join(", ")
+                            : (detail || "Could not publish the event."));
+                    }
+                    showMessage("Event published successfully and is eligible for Event Discovery.", "success");
+                    publishButton.textContent = "Published";
+                    publishButton.classList.remove("btn-success");
+                    publishButton.classList.add("btn-outline-success");
+                } catch (publishError) {
+                    showMessage(publishError.message || "Could not publish the event.");
+                    publishButton.disabled = false;
+                    publishButton.textContent = "Retry publishing";
+                }
+            });
+            postCreateActions.append(publishButton);
+        }
         form.reset();
         updateModeFields();
 

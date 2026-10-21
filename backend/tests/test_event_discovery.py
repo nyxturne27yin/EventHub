@@ -167,6 +167,16 @@ def test_draft_or_missing_event_is_not_publicly_discoverable():
         app.dependency_overrides.clear()
 
 
+def test_draft_event_cannot_be_retrieved_through_public_detail_endpoint():
+    client = make_client(event=make_event(status="draft"))
+    try:
+        response = client.get("/events/5")
+        assert response.status_code == 404
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+
 def test_invalid_event_identifier_is_rejected():
     client = make_client(event=None)
     try:
