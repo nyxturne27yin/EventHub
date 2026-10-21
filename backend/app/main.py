@@ -11,6 +11,7 @@ from app.database.database import engine
 from app.routers.health import router as health_router
 from app.auth.router import router as auth_router
 from app.routers.events import router as events_router
+from app.routers.admin import router as admin_router
 from app.routers.organizer_profiles import (
     router as organizer_profiles_router,
 )
@@ -53,6 +54,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(events_router)
+app.include_router(admin_router)
 app.include_router(organizer_profiles_router)
 
 from app.routers.certificates import router as certificates_router

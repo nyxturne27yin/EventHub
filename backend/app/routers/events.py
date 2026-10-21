@@ -1,13 +1,21 @@
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
+from app.models.registration import EventRegistration
+from app.models.organizer_profile import OrganizerProfile
 from app.models.user import User
+from app.services.event_lifecycle import (
+    complete_event_if_due,
+    complete_finished_events,
+    event_has_ended,
+    local_now,
+)
 from app.schemas.event import (
     EventCreateRequest,
     EventSearchItem,
@@ -15,6 +23,27 @@ from app.schemas.event import (
 )
 
 router = APIRouter(prefix="/events", tags=["Events"])
+
+
+async def event_search_item_with_organizer(
+    event: Event,
+    db: AsyncSession,
+) -> dict:
+    """Return public event details with optional organizer information."""
+    profile_result = await db.execute(
+        select(OrganizerProfile).where(
+            OrganizerProfile.user_id == event.organizer_id
+        )
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    item = EventSearchItem.model_validate(event).model_dump()
+    item["organization_name"] = getattr(
+        profile, "organization_name", None
+    )
+    item["department"] = getattr(profile, "department", None)
+
+    return item
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -78,11 +107,20 @@ async def list_events(
     search: str | None = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
-    # Only published events are public. Date filtering is performed here as
-    # well as in the UI so past events are not advertised as upcoming.
+    now = local_now()
+    await complete_finished_events(db, now)
+
+    # Status and end-time filters both protect discovery if a legacy row has
+    # not yet been refreshed by another request.
     statement = select(Event).where(
         Event.status == "published",
-        Event.event_date >= date.today(),
+        or_(
+            Event.event_date > now.date(),
+            and_(
+                Event.event_date == now.date(),
+                Event.end_time > now.time(),
+            ),
+        ),
     )
     search_text = search.strip() if search else ""
 
@@ -102,7 +140,21 @@ async def list_events(
     )
 
     result = await db.execute(statement)
-    return result.scalars().all()
+    events = result.scalars().all()
+
+    event_items = []
+    for event in events:
+        count_result = await db.execute(
+            select(func.count(EventRegistration.id)).where(
+                EventRegistration.event_id == event.id,
+                EventRegistration.status == "Registered",
+            )
+        )
+        item = await event_search_item_with_organizer(event, db)
+        item["registered_count"] = count_result.scalar_one()
+        event_items.append(item)
+
+    return event_items
 
 
 @router.get("/{event_id}", response_model=EventSearchItem)
@@ -110,20 +162,140 @@ async def get_event_details(
     event_id: int = Path(gt=0),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return public details for a published event (or its cancellation notice)."""
-    result = await db.execute(
-        select(Event).where(
-            Event.id == event_id,
-            Event.status.in_(( "published", "cancelled" )),
+    """Return public details for a published, cancelled, or completed event."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    await complete_event_if_due(db, event)
+
+    if (event.status or "").strip().lower() not in {
+        "published", "cancelled", "completed"
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    count_result = await db.execute(
+        select(func.count(EventRegistration.id)).where(
+            EventRegistration.event_id == event.id,
+            EventRegistration.status == "Registered",
         )
     )
+    item = await event_search_item_with_organizer(event, db)
+    item["registered_count"] = count_result.scalar_one()
+    return item
+
+
+@router.post("/{event_id}/publish")
+async def publish_event(
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    """Publish an eligible draft owned by the authenticated organizer."""
+    if (
+        current_user.role is None
+        or current_user.role.name.strip().lower() != "organizer"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organizers can publish events",
+        )
+
+    result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalar_one_or_none()
     if event is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found",
         )
-    return event
+
+    if event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only publish events you manage",
+        )
+
+    await complete_event_if_due(db, event)
+    current_status = (event.status or "").strip().lower()
+    if current_status != "draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Only draft events can be published; current status is '{current_status}'.",
+        )
+
+    now = local_now()
+    if event_has_ended(event, now):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An event that has already ended cannot be published.",
+        )
+    for field_name in ("title", "description", "category"):
+        if not (getattr(event, field_name, None) or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{field_name.capitalize()} cannot be empty",
+            )
+    if event.end_time <= event.start_time:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="End time must be after start time",
+        )
+    event_start = datetime.combine(event.event_date, event.start_time)
+    deadline = event.registration_deadline
+    if deadline is None or deadline.tzinfo is not None or deadline >= event_start:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Registration deadline must be a local date and time before the event starts",
+        )
+    if event.mode == "Offline" and not (event.venue or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Venue is required for offline events",
+        )
+    if event.mode == "Online" and not (event.meeting_link or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Meeting link is required for online events",
+        )
+    if event.mode not in {"Online", "Offline"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Mode must be Online or Offline",
+        )
+
+    event.status = "pending_approval"
+    event.updated_at = now
+    await db.commit()
+    await db.refresh(event)
+
+    return {
+       "message": "Event submitted for approval",
+        "event": {
+            "id": event.id,
+            "title": event.title,
+            "description": event.description,
+            "category": event.category,
+            "event_date": event.event_date,
+            "start_time": event.start_time,
+            "end_time": event.end_time,
+            "mode": event.mode,
+            "venue": event.venue,
+            "meeting_link": event.meeting_link,
+            "capacity": event.capacity,
+            "registration_deadline": event.registration_deadline,
+            "status": event.status,
+            "organizer_id": event.organizer_id,
+            "updated_at": event.updated_at,
+        },
+    }
 
 
 @router.patch("/{event_id}")
@@ -159,10 +331,23 @@ async def update_event(
             detail="You can only update your own events",
         )
 
-    if event.status.lower() == "cancelled":
+    await complete_event_if_due(db, event)
+
+    current_status = (event.status or "").strip().lower()
+    if current_status == "pending_approval":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Events pending approval cannot be updated",
+        )
+    if current_status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cancelled events cannot be updated",
+        )
+    if current_status == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Completed events cannot be updated",
         )
 
     changes = payload.model_dump(exclude_unset=True)
@@ -250,7 +435,10 @@ async def update_event(
 
     event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    await db.commit()
+    # If an edit changes the event's end time into the past, persist its
+    # Completed status in the same request rather than waiting for another read.
+    if not await complete_event_if_due(db, event):
+        await db.commit()
     await db.refresh(event)
 
     return {
@@ -307,10 +495,25 @@ async def cancel_event(
             detail="You can only cancel your own events",
         )
 
-    if event.status.lower() == "cancelled":
+    await complete_event_if_due(db, event)
+    current_status = (event.status or "").strip().lower()
+
+    if current_status == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Completed events cannot be cancelled.",
+        )
+
+    if current_status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Event is already cancelled",
+        )
+
+    if current_status not in {"draft", "published"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel an event with status '{current_status}'.",
         )
 
     event.status = "cancelled"

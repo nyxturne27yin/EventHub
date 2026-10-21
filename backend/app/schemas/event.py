@@ -1,3 +1,4 @@
+
 from datetime import date, datetime, time
 from typing import Literal
 from urllib.parse import urlparse
@@ -27,6 +28,7 @@ class EventUpdateRequest(BaseModel):
     venue: str | None = Field(default=None, max_length=255)
     meeting_link: str | None = Field(default=None, max_length=500)
 
+    # None means unlimited capacity.
     capacity: StrictInt | None = Field(default=None, gt=0)
     registration_deadline: datetime | None = None
 
@@ -74,7 +76,6 @@ class EventUpdateRequest(BaseModel):
             "start_time",
             "end_time",
             "mode",
-            "capacity",
             "registration_deadline",
         }
 
@@ -100,9 +101,10 @@ class EventCreateRequest(BaseModel):
     venue: str | None = Field(default=None, max_length=255)
     meeting_link: str | None = Field(default=None, max_length=500)
 
-    capacity: StrictInt = Field(gt=0)
+    # Omitted or null capacity means unlimited capacity.
+    capacity: StrictInt | None = Field(default=None, gt=0)
     registration_deadline: datetime
-    status: Literal["draft", "published"] = "draft"
+    status: Literal["draft"] = "draft"
 
     @field_validator("title", "description", "category")
     @classmethod
@@ -178,5 +180,13 @@ class EventSearchItem(BaseModel):
     mode: str
     venue: str | None = None
     capacity: int | None = None
-    registration_deadline: datetime | None = None
+    registered_count: int = 0
     status: str
+    organization_name: str | None = None
+    department: str | None = None
+
+
+class EventDetailResponse(EventSearchItem):
+    """Detailed event response."""
+
+    registration_deadline: datetime

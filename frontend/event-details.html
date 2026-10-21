@@ -23,11 +23,17 @@
             </div>
         </div>
     </nav>
+
     <main class="container py-5">
         <a class="btn btn-outline-secondary mb-4" href="index.html">← Back to events</a>
+
         <p id="detailsLoading" role="status">Loading event details…</p>
         <div id="detailsError" class="alert alert-danger d-none" role="alert"></div>
-        <button id="retryDetails" class="btn btn-outline-danger d-none mb-3" type="button">Retry</button>
+
+        <button id="retryDetails" class="btn btn-outline-danger d-none mb-3" type="button">
+            Retry
+        </button>
+
         <article id="eventDetails" class="card shadow-sm d-none">
             <div class="card-body p-4 p-lg-5">
                 <div class="d-flex flex-wrap gap-2 mb-3">
@@ -35,21 +41,52 @@
                     <span id="detailMode" class="badge text-bg-info"></span>
                     <span id="detailStatus" class="badge text-bg-success"></span>
                 </div>
+
                 <h1 id="detailTitle" class="h2 mb-3"></h1>
                 <p id="detailDescription" class="event-description"></p>
+
                 <hr>
+
                 <dl class="row mb-0">
-                    <dt class="col-sm-4">Date</dt><dd id="detailDate" class="col-sm-8"></dd>
-                    <dt class="col-sm-4">Time</dt><dd id="detailTime" class="col-sm-8"></dd>
-                    <dt class="col-sm-4">Location</dt><dd id="detailLocation" class="col-sm-8"></dd>
-                    <dt class="col-sm-4">Maximum capacity</dt><dd id="detailCapacity" class="col-sm-8"></dd>
-                    <dt class="col-sm-4">Registration deadline</dt><dd id="detailDeadline" class="col-sm-8"></dd>
-                    <dt class="col-sm-4">Registration availability</dt><dd id="detailAvailability" class="col-sm-8"></dd>
+                    <dt class="col-sm-4">Organizing club / department</dt>
+                    <dd id="detailOrganization" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Department</dt>
+                    <dd id="detailDepartment" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Date</dt>
+                    <dd id="detailDate" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Time</dt>
+                    <dd id="detailTime" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Location</dt>
+                    <dd id="detailLocation" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Maximum capacity</dt>
+                    <dd id="detailCapacity" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Registration deadline</dt>
+                    <dd id="detailDeadline" class="col-sm-8"></dd>
+
+                    <dt class="col-sm-4">Registration availability</dt>
+                    <dd id="detailAvailability" class="col-sm-8"></dd>
                 </dl>
-                <p class="small text-muted mt-4 mb-0">EventHub does not reserve a place from this page. Availability is confirmed by the registration workflow.</p>
+
+                <div id="registrationMessage" class="alert d-none mt-4" role="alert"></div>
+
+                <button id="registerForEvent" class="btn btn-primary mt-3" type="button">
+                    Register for Event
+                </button>
+
+                <p class="small text-muted mt-4 mb-0">
+                    EventHub does not reserve a place from this page.
+                    Availability is confirmed by the registration workflow.
+                </p>
             </div>
         </article>
     </main>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/event-details.js"></script>
 </body>

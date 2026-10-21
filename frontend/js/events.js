@@ -38,10 +38,13 @@ function getAvailability(event) {
     if ((event.status || "").toLowerCase() === "cancelled") {
         return { label: "Cancelled", style: "text-bg-danger" };
     }
-    if (event.registration_deadline && new Date(event.registration_deadline) < new Date()) {
+    if (event.registration_deadline && new Date(event.registration_deadline) <= new Date()) {
         return { label: "Registration closed", style: "text-bg-secondary" };
     }
-    return { label: "Availability unconfirmed", style: "text-bg-warning" };
+    if (Number(event.capacity) > 0 && Number(event.registered_count || 0) >= Number(event.capacity)) {
+        return { label: "Full", style: "text-bg-danger" };
+    }
+    return { label: "Registration open", style: "text-bg-success" };
 }
 
 function showEvent(event) {

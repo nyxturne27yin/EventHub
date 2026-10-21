@@ -16,7 +16,12 @@ from app.database.database import get_db
 from app.dependencies.auth import get_current_user, require_role
 from app.models.certificate import Certificate
 from app.models.event import Event
+from app.models.registration import EventRegistration
 from app.models.user import User
+from app.services.event_lifecycle import (
+    complete_event_if_due,
+    event_has_ended,
+)
 
 router = APIRouter(prefix="/certificates", tags=["Certificates"])
 
@@ -48,10 +53,15 @@ async def generate_certificate(
             detail="You can only issue certificates for your own events",
         )
 
-    if (event.status or "").strip().lower() != "completed":
+    await complete_event_if_due(db, event)
+
+    if (
+        (event.status or "").strip().lower() != "completed"
+        or not event_has_ended(event)
+    ):
         raise HTTPException(
             status_code=409,
-            detail="Certificates can only be issued for completed events",
+            detail="Certificates can only be issued after an event has completed",
         )
 
     result = await db.execute(
@@ -69,6 +79,22 @@ async def generate_certificate(
         raise HTTPException(
             status_code=400,
             detail="Certificates can only be issued to student accounts",
+        )
+
+    registration_result = await db.execute(
+        select(EventRegistration).where(
+            EventRegistration.event_id == event.id,
+            EventRegistration.participant_id == student.id,
+            EventRegistration.status == "Registered",
+        )
+    )
+    if registration_result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "The student must have an active registration for this event "
+                "before a certificate can be issued"
+            ),
         )
 
     result = await db.execute(
