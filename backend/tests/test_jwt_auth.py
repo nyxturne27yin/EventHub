@@ -167,3 +167,53 @@ def test_malformed_token_subject_is_rejected(client):
     )
 
     assert response.status_code == 401
+
+
+def test_inactive_user_cannot_login():
+    user = make_user()
+    user.is_active = False
+
+    async def override_get_db():
+        yield FakeDB(user)
+
+    app.dependency_overrides[get_db] = override_get_db
+    test_client = TestClient(app)
+
+    try:
+        response = test_client.post(
+            "/auth/login",
+            json={
+                "email": "12345678@uap-bd.edu",
+                "password": "StrongPass123!",
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "User account is inactive"
+    finally:
+        test_client.close()
+        app.dependency_overrides.clear()
+
+
+def test_inactive_user_cannot_use_existing_token():
+    user = make_user()
+    user.is_active = False
+
+    async def override_get_db():
+        yield FakeDB(user)
+
+    app.dependency_overrides[get_db] = override_get_db
+    test_client = TestClient(app)
+    token = create_access_token({"sub": "1"})
+
+    try:
+        response = test_client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "User account is inactive"
+    finally:
+        test_client.close()
+        app.dependency_overrides.clear()

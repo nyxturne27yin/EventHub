@@ -123,3 +123,172 @@ def test_unauthenticated_user_cannot_list_users():
     finally:
         client.close()
         app.dependency_overrides.clear()
+
+
+class MutationResult:
+    def __init__(self, value):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class MutationDB:
+    def __init__(self, users, roles):
+        self.users = users
+        self.roles = roles
+        self.commit_count = 0
+
+    async def execute(self, statement):
+        entity = statement.column_descriptions[0]["entity"]
+        params = statement.compile().params
+
+        if entity is User:
+            target_id = next(
+                (value for key, value in params.items()
+                 if key.startswith("id_")),
+                None,
+            )
+            user = next(
+                (item for item in self.users if item.id == target_id),
+                None,
+            )
+            return MutationResult(user)
+
+        if entity is Role:
+            role_name = next(
+                (value for key, value in params.items()
+                 if key.startswith("name_")),
+                None,
+            )
+            role = next(
+                (item for item in self.roles if item.name == role_name),
+                None,
+            )
+            return MutationResult(role)
+
+        return MutationResult(None)
+
+    async def commit(self):
+        self.commit_count += 1
+
+    async def refresh(self, user):
+        pass
+
+def make_mutation_client(
+    users,
+    role_name="administrator",
+):
+    roles = [
+        Role(id=1, name="student"),
+        Role(id=2, name="organizer"),
+        Role(id=3, name="administrator"),
+    ]
+    db = MutationDB(users, roles)
+
+    async def override_get_db():
+        yield db
+
+    async def override_get_current_user():
+        return make_user(role_name=role_name)
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
+    return TestClient(app), db
+
+def test_administrator_can_deactivate_active_user():
+    admin = make_user(user_id=1, role_name="administrator")
+    target = make_user(user_id=2, role_name="student", active=True)
+    client, db = make_mutation_client([admin, target])
+
+    try:
+        response = client.patch(
+            "/admin/users/2",
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["is_active"] is False
+        assert target.is_active is False
+        assert db.commit_count == 1
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+def test_administrator_can_reactivate_inactive_user():
+    admin = make_user(user_id=1, role_name="administrator")
+    target = make_user(user_id=2, role_name="student", active=False)
+    client, db = make_mutation_client([admin, target])
+
+    try:
+        response = client.patch(
+            "/admin/users/2",
+            json={"is_active": True},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["is_active"] is True
+        assert target.is_active is True
+        assert db.commit_count == 1
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+def test_student_cannot_change_user_activation_status():
+    admin = make_user(user_id=1, role_name="administrator")
+    target = make_user(user_id=2, role_name="student", active=True)
+    client, db = make_mutation_client(
+        [admin, target],
+        role_name="student",
+    )
+
+    try:
+        response = client.patch(
+            "/admin/users/2",
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 403
+        assert target.is_active is True
+        assert db.commit_count == 0
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+def test_administrator_cannot_update_nonexistent_user():
+    admin = make_user(user_id=1, role_name="administrator")
+    client, db = make_mutation_client([admin])
+
+    try:
+        response = client.patch(
+            "/admin/users/999",
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "User not found"
+        assert db.commit_count == 0
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+def test_administrator_cannot_deactivate_own_account():
+    admin = make_user(user_id=1, role_name="administrator")
+    client, db = make_mutation_client([admin])
+
+    try:
+        response = client.patch(
+            "/admin/users/1",
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == (
+            "You cannot deactivate your own account."
+        )
+        assert admin.is_active is True
+        assert db.commit_count == 0
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
