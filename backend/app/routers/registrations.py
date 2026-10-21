@@ -1,3 +1,4 @@
+
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
+from app.models.notification import Notification
 from app.models.registration import EventRegistration
 from app.models.user import User
 from app.schemas.registration import RegistrationStatusUpdate
@@ -29,6 +31,13 @@ async def register_for_event(
     )
     event = result.scalar_one_or_none()
 
+ feature/EV-79-registration-notification
+    if event is None or event.status != "published":
+        raise HTTPException(
+            status_code=404,
+            detail="Published event not found",
+        )
+
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
@@ -50,6 +59,7 @@ async def register_for_event(
 
     if event_status != "published":
         raise HTTPException(status_code=404, detail="Published event not found")
+main
 
     now = datetime.now()
     event_start = datetime.combine(event.event_date, event.start_time)
@@ -75,6 +85,39 @@ async def register_for_event(
     registration = existing.scalar_one_or_none()
 
     if registration is not None:
+ feature/EV-79-registration-notification
+        if registration.status == "Registered":
+            raise HTTPException(
+                status_code=409,
+                detail="Already registered for this event",
+            )
+
+        registration.status = "Registered"
+
+        notification = Notification(
+            user_id=current_user.id,
+            event_id=event.id,
+            title="Registration Successful",
+            message=(
+                f"Your registration for '{event.title}' is confirmed. "
+                f"Date: {event.event_date}, "
+                f"Time: {event.start_time}, "
+                f"Venue/Mode: {event.venue or event.mode}. "
+                f"Status: Registered."
+            ),
+        )
+        db.add(notification)
+
+        await db.commit()
+        await db.refresh(registration)
+
+        return {
+            "id": registration.id,
+            "event_id": registration.event_id,
+            "participant_id": registration.participant_id,
+            "status": registration.status,
+        }
+
         if registration.status == "Cancelled":
             count_result = await db.execute(
                 select(func.count(EventRegistration.id)).where(
@@ -102,6 +145,7 @@ async def register_for_event(
             status_code=409,
             detail="Already registered for this event",
         )
+ main
 
     count_result = await db.execute(
         select(func.count(EventRegistration.id)).where(
@@ -111,7 +155,11 @@ async def register_for_event(
     )
     registered_count = count_result.scalar_one()
 
+feature/EV-79-registration-notification
+    if registered_count >= event.capacity:
+
     if event.capacity is not None and registered_count >= event.capacity:
+main
         raise HTTPException(
             status_code=409,
             detail="Event capacity is full",
@@ -123,6 +171,21 @@ async def register_for_event(
         status="Registered",
     )
     db.add(registration)
+
+    notification = Notification(
+        user_id=current_user.id,
+        event_id=event.id,
+        title="Registration Successful",
+        message=(
+            f"Your registration for '{event.title}' is confirmed. "
+            f"Date: {event.event_date}, "
+            f"Time: {event.start_time}, "
+            f"Venue/Mode: {event.venue or event.mode}. "
+            f"Status: Registered."
+        ),
+    )
+    db.add(notification)
+
     await db.commit()
     await db.refresh(registration)
 
@@ -230,8 +293,10 @@ async def list_event_participants(
             status_code=403,
             detail="You can only view participants for your own events",
         )
+ feature/EV-79-registration-notification
 
     await complete_event_if_due(db, event)
+main
 
     result = await db.execute(
         select(EventRegistration, User)
@@ -274,6 +339,8 @@ async def update_registration_status(
             status_code=403,
             detail="You can only manage participants for your own events",
         )
+ feature/EV-79-registration-notification
+
 
     await complete_event_if_due(db, event)
 
@@ -285,6 +352,7 @@ async def update_registration_status(
                 "or cancelled events"
             ),
         )
+main
 
     result = await db.execute(
         select(EventRegistration).where(

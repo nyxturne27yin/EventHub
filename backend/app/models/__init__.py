@@ -6,3 +6,5 @@ from .certificate import Certificate
 from .registration import EventRegistration
 
 from .registration import EventRegistration
+
+from .notification import Notification
