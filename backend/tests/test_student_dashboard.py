@@ -126,3 +126,18 @@ def test_organizer_cannot_access_student_dashboard(dashboard_api):
     response = client.get("/registrations/me")
 
     assert response.status_code == 403
+
+
+def test_student_dashboard_includes_cancelled_registration_status(
+    dashboard_api,
+):
+    client, state = dashboard_api
+    registration, event = state["rows"][0]
+    registration.status = "Cancelled"
+
+    response = client.get("/registrations/me")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["registration_status"] == "Cancelled"
