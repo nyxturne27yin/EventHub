@@ -49,6 +49,59 @@ async def get_my_registrations(
     ]
 
 
+@router.get("/registrations/me/upcoming")
+async def get_my_upcoming_registrations(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("student")),
+):
+    result = await db.execute(
+        select(EventRegistration, Event)
+        .join(Event, EventRegistration.event_id == Event.id)
+        .where(
+            EventRegistration.participant_id == current_user.id,
+            EventRegistration.status == "Registered",
+        )
+        .order_by(Event.event_date.asc(), Event.start_time.asc())
+    )
+
+    now = datetime.now()
+    upcoming = []
+
+    for registration, event in result.all():
+        event_status = (event.status or "").strip().lower()
+        if event_status in {"cancelled", "completed"}:
+            continue
+        if registration.status != "Registered":
+            continue
+        if event.event_date < now.date():
+            continue
+        if event.event_date == now.date() and event.start_time <= now.time():
+            continue
+        upcoming.append((registration, event))
+
+    upcoming.sort(key=lambda item: (item[1].event_date, item[1].start_time))
+
+    return [
+        {
+            "registration_id": registration.id,
+            "registration_status": registration.status,
+            "registered_at": registration.created_at,
+            "event_id": event.id,
+            "title": event.title,
+            "description": event.description,
+            "category": event.category,
+            "event_date": event.event_date,
+            "start_time": event.start_time,
+            "end_time": event.end_time,
+            "mode": event.mode,
+            "venue": event.venue,
+            "meeting_link": event.meeting_link,
+            "status": event.status,
+        }
+        for registration, event in upcoming
+    ]
+
+
 @router.post(
     "/events/{event_id}/registrations",
     status_code=status.HTTP_201_CREATED,
