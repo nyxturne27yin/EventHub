@@ -183,7 +183,9 @@ function createRegistrationCard(registration) {
     status.classList.add(
         registrationStatus === "Registered"
             ? "text-bg-success"
-            : "text-bg-secondary"
+            : registrationStatus === "Cancelled"
+                ? "text-bg-danger"
+                : "text-bg-secondary"
     );
 
     const eventStatus = document.createElement("p");

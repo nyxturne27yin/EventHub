@@ -53,6 +53,19 @@ class FakeDB:
             for description in query.column_descriptions
         ]
 
+        if (
+            len(entities) > 1
+            and entities[0] is EventRegistration
+            and entities[1] is Event
+        ):
+            return FakeResult(
+                rows=[
+                    (self.registration, self.event)
+                ]
+                if self.registration and self.event
+                else []
+            )
+
         if entities[0] is Event:
             return FakeResult(self.event)
 
@@ -391,3 +404,22 @@ def test_ended_published_event_is_completed_before_registration_is_rejected(
     assert state["event"].status == "completed"
     assert state["db"].committed is True
     assert state["registration"] is None
+
+
+@pytest.mark.parametrize("registration_status", ["Registered", "Cancelled"])
+def test_student_can_view_own_registration_status(
+    registration_api,
+    registration_status,
+):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["registration"].status = registration_status
+
+    response = client.get("/registrations/me")
+
+    assert response.status_code == 200
+    registrations = response.json()
+    assert len(registrations) == 1
+    assert registrations[0]["registration_id"] == 20
+    assert registrations[0]["event_id"] == 10
+    assert registrations[0]["registration_status"] == registration_status
