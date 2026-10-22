@@ -119,6 +119,83 @@ def test_student_dashboard_returns_empty_list_without_registrations(
     assert response.json() == []
 
 
+
+def test_upcoming_registrations_exclude_past_and_cancelled_events(dashboard_api):
+    client, state = dashboard_api
+    student = state["user"]
+    future_registration, future_event = state["rows"][0]
+
+    past_event = make_dashboard_event()
+    past_event.id = 11
+    past_event.event_date = date.today() - timedelta(days=1)
+
+    cancelled_event = make_dashboard_event()
+    cancelled_event.id = 12
+    cancelled_event.status = "cancelled"
+
+    completed_event = make_dashboard_event()
+    completed_event.id = 13
+    completed_event.status = "completed"
+
+    cancelled_registration = EventRegistration(
+        id=21, event_id=cancelled_event.id, participant_id=student.id,
+        status="Registered", created_at=datetime.now()
+    )
+    past_registration = EventRegistration(
+        id=22, event_id=past_event.id, participant_id=student.id,
+        status="Registered", created_at=datetime.now()
+    )
+    completed_registration = EventRegistration(
+        id=23, event_id=completed_event.id, participant_id=student.id,
+        status="Registered", created_at=datetime.now()
+    )
+
+    state["rows"] = [
+        (past_registration, past_event),
+        (cancelled_registration, cancelled_event),
+        (completed_registration, completed_event),
+        (future_registration, future_event),
+    ]
+
+    response = client.get("/registrations/me/upcoming")
+
+    assert response.status_code == 200
+    assert [item["registration_id"] for item in response.json()] == [20]
+
+
+def test_upcoming_registrations_are_sorted_earliest_first(dashboard_api):
+    client, state = dashboard_api
+    student = state["user"]
+    later_registration, later_event = state["rows"][0]
+
+    earlier_event = make_dashboard_event()
+    earlier_event.id = 11
+    earlier_event.event_date = date.today() + timedelta(days=2)
+    earlier_registration = EventRegistration(
+        id=21, event_id=earlier_event.id, participant_id=student.id,
+        status="Registered", created_at=datetime.now()
+    )
+    state["rows"] = [
+        (later_registration, later_event),
+        (earlier_registration, earlier_event),
+    ]
+
+    response = client.get("/registrations/me/upcoming")
+
+    assert response.status_code == 200
+    assert [item["event_id"] for item in response.json()] == [11, 10]
+
+
+def test_upcoming_registrations_returns_empty_list_when_none(dashboard_api):
+    client, state = dashboard_api
+    event_registration, event = state["rows"][0]
+    event.event_date = date.today() - timedelta(days=1)
+
+    response = client.get("/registrations/me/upcoming")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
 def test_organizer_cannot_access_student_dashboard(dashboard_api):
     client, state = dashboard_api
     state["user"] = make_dashboard_user(1, "organizer")
