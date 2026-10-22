@@ -406,6 +406,78 @@ def test_ended_published_event_is_completed_before_registration_is_rejected(
     assert state["registration"] is None
 
 
+def test_student_can_view_multiple_registration_statuses(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+
+    first_event = state["event"]
+    second_event = make_event()
+    second_event.id = 11
+    second_event.title = "Second Test Event"
+
+    first_registration = state["registration"]
+    first_registration.status = "Registered"
+
+    second_registration = EventRegistration(
+        id=21,
+        event_id=11,
+        participant_id=2,
+        status="Cancelled",
+        created_at=datetime.now(),
+    )
+
+    async def override_get_db():
+        class MultipleRegistrationDB(FakeDB):
+            async def execute(self, query):
+                entities = [
+                    description["entity"]
+                    for description in query.column_descriptions
+                ]
+
+                if (
+                    len(entities) > 1
+                    and entities[0] is EventRegistration
+                    and entities[1] is Event
+                ):
+                    return FakeResult(
+                        rows=[
+                            (first_registration, first_event),
+                            (second_registration, second_event),
+                        ]
+                    )
+
+                return await super().execute(query)
+
+        db = MultipleRegistrationDB(
+            first_event,
+            first_registration,
+            state["participant"],
+            state=state,
+        )
+        state["db"] = db
+        yield db
+
+    original_get_db_override = app.dependency_overrides[get_db]
+    app.dependency_overrides[get_db] = override_get_db
+
+    try:
+        response = client.get("/registrations/me")
+    finally:
+        app.dependency_overrides[get_db] = original_get_db_override
+
+    assert response.status_code == 200
+    registrations = response.json()
+    assert len(registrations) == 2
+    registrations_by_event = {
+        item["event_id"]: item["registration_status"]
+        for item in registrations
+    }
+    assert registrations_by_event == {
+        10: "Registered",
+        11: "Cancelled",
+    }
+
+
 @pytest.mark.parametrize("registration_status", ["Registered", "Cancelled"])
 def test_student_can_view_own_registration_status(
     registration_api,

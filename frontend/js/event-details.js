@@ -120,6 +120,41 @@ function updateRegistrationButton(event) {
     }
 }
 
+async function loadMyRegistrationStatus() {
+    if (!registrationMessage) return;
+
+    const token = sessionStorage.getItem("access_token");
+
+    if (!token || !eventId) return;
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/registrations/me", {
+            headers: {
+                Authorization: "Bearer " + token,
+                Accept: "application/json"
+            }
+        });
+
+        if (!response.ok) return;
+
+        const registrations = await response.json();
+        const registration = registrations.find(
+            item => String(item.event_id) === String(eventId)
+        );
+
+        if (!registration) return;
+
+        const status = registration.registration_status;
+
+        registrationMessage.textContent = "Your registration status: " + status;
+        registrationMessage.className =
+            "alert mt-4 " +
+            (status === "Registered" ? "alert-success" : "alert-danger");
+    } catch (error) {
+        console.error("Could not load registration status:", error);
+    }
+}
+
 async function loadDetails() {
     if (!loading || !errorBox || !retryButton || !details) {
         console.error(
@@ -247,6 +282,7 @@ async function loadDetails() {
 
         // Disable registration when the event cannot accept registrations.
         updateRegistrationButton(data);
+        await loadMyRegistrationStatus();
 
         loading.classList.add("d-none");
         details.classList.remove("d-none");
@@ -340,16 +376,17 @@ if (registerButton) {
                 );
             }
 
-            if (registrationMessage) {
-                registrationMessage.textContent =
-                    "Registration successful! Your registration ID is " +
-                    data.id +
-                    ".";
-                registrationMessage.className = "alert alert-success mt-4";
-            }
-
             registerButton.disabled = true;
             registerButton.textContent = "Registered";
+
+            if (registrationMessage) {
+                const status = data.status || "Registered";
+                registrationMessage.textContent =
+                    "Your registration status: " + status;
+                registrationMessage.className = "alert mt-4 alert-success";
+            }
+
+            await loadMyRegistrationStatus();
         } catch (error) {
             if (registrationMessage) {
                 registrationMessage.textContent =
