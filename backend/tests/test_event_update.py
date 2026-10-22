@@ -18,18 +18,30 @@ class FakeResult:
     def scalar_one_or_none(self):
         return self.value
 
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self.value if isinstance(self.value, list) else []
+
 
 class FakeDB:
     def __init__(self, event=None):
         self.event = event
         self.committed = False
         self.refreshed = False
+        self.added = []
 
     async def execute(self, query):
+        query_text = str(query).lower()
+
+        if "event_registrations" in query_text:
+            return FakeResult([])
+
         return FakeResult(self.event)
 
     def add(self, instance):
-        pass
+        self.added.append(instance)
 
     async def commit(self):
         self.committed = True

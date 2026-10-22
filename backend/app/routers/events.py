@@ -1,3 +1,4 @@
+
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
@@ -8,6 +9,7 @@ from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
 from app.models.registration import EventRegistration
+from app.models.notification import Notification
 from app.models.organizer_profile import OrganizerProfile
 from app.models.user import User
 from app.services.event_lifecycle import (
@@ -110,8 +112,6 @@ async def list_events(
     now = local_now()
     await complete_finished_events(db, now)
 
-    # Status and end-time filters both protect discovery if a legacy row has
-    # not yet been refreshed by another request.
     statement = select(Event).where(
         Event.status == "published",
         or_(
@@ -277,7 +277,7 @@ async def publish_event(
     await db.refresh(event)
 
     return {
-       "message": "Event submitted for approval",
+        "message": "Event submitted for approval",
         "event": {
             "id": event.id,
             "title": event.title,
@@ -435,8 +435,6 @@ async def update_event(
 
     event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    # If an edit changes the event's end time into the past, persist its
-    # Completed status in the same request rather than waiting for another read.
     if not await complete_event_if_due(db, event):
         await db.commit()
     await db.refresh(event)
@@ -516,9 +514,32 @@ async def cancel_event(
             detail=f"Cannot cancel an event with status '{current_status}'.",
         )
 
+    # Create a notification for each currently registered participant.
+    registrations_result = await db.execute(
+        select(EventRegistration).where(
+            EventRegistration.event_id == event.id,
+            EventRegistration.status == "Registered",
+        )
+    )
+    registrations = registrations_result.scalars().all()
+
+    for registration in registrations:
+        db.add(
+            Notification(
+                user_id=registration.participant_id,
+                event_id=event.id,
+                title="Event Cancelled",
+                message=f"The event '{event.title}' has been cancelled.",
+                deduplication_key=(
+                    f"event-cancelled:{event.id}:{registration.participant_id}"
+                ),
+            )
+        )
+
     event.status = "cancelled"
     event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
+    # Persist the cancellation and its notifications in the same transaction.
     await db.commit()
     await db.refresh(event)
 
