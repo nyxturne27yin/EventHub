@@ -495,3 +495,28 @@ def test_student_can_view_own_registration_status(
     assert registrations[0]["registration_id"] == 20
     assert registrations[0]["event_id"] == 10
     assert registrations[0]["registration_status"] == registration_status
+
+
+def test_student_can_view_registration_history_for_completed_event(
+    registration_api,
+):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+    state["event"].status = "completed"
+    state["event"].event_date = date.today() - timedelta(days=1)
+
+    try:
+        response = client.get("/registrations/me")
+    finally:
+        client.close()
+
+    assert response.status_code == 200
+    registrations = response.json()
+
+    assert len(registrations) == 1
+    record = registrations[0]
+    assert record["registration_id"] == 20
+    assert record["event_id"] == 10
+    assert record["registration_status"] == "Registered"
+    assert record["title"] == "Test Event"
+    assert record["description"] == "Test description"

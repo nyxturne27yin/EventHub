@@ -14,11 +14,15 @@ from app.models.user import User
 
 
 class FakeResult:
-    def __init__(self, value=None):
+    def __init__(self, value=None, rows=None):
         self.value = value
+        self.rows = rows or []
 
     def scalar_one_or_none(self):
         return self.value
+
+    def all(self):
+        return self.rows
 
 
 class FakeDB:
@@ -42,6 +46,9 @@ class FakeDB:
                 return FakeResult(registration)
             return FakeResult(None)
         if entity is Certificate:
+            if len(statement.column_descriptions) > 1:
+                rows = [(self.existing_certificate, self.event)] if self.existing_certificate else []
+                return FakeResult(rows=rows)
             return FakeResult(self.existing_certificate)
         return FakeResult(None)
 
@@ -190,3 +197,60 @@ def test_stale_completed_status_does_not_allow_certificate_before_event_end():
     finally:
         client.close()
         app.dependency_overrides.clear()
+
+def test_certificate_verification_works_for_completed_event():
+    event = make_event(status="completed")
+    client, db, _ = make_client(event)
+
+    certificate_id = str(uuid4())
+    certificate = Certificate(
+        certificate_id=certificate_id,
+        student_id=2,
+        event_id=event.id,
+        category="Academic",
+        issued_at=datetime.now(),
+    )
+    db.existing_certificate = certificate
+
+    try:
+        response = client.get(
+            f"/certificates/verify/{certificate_id}"
+        )
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["valid"] is True
+    assert result["certificate_id"] == certificate_id
+    assert result["event_title"] == event.title
+
+def test_student_can_view_certificate_history_for_completed_event():
+    event = make_event(status="completed")
+    client, db, _ = make_client(event)
+    certificate_id = str(uuid4())
+    db.existing_certificate = Certificate(
+        certificate_id=certificate_id,
+        student_id=2,
+        event_id=event.id,
+        category="Academic",
+        issued_at=datetime.now(),
+    )
+
+    async def override_student():
+        return db.student
+
+    app.dependency_overrides[get_current_user] = override_student
+    try:
+        response = client.get("/certificates/me")
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    certificates = response.json()
+    assert len(certificates) == 1
+    assert certificates[0]["certificate_id"] == certificate_id
+    assert certificates[0]["event_id"] == event.id
+    assert certificates[0]["event_title"] == event.title
