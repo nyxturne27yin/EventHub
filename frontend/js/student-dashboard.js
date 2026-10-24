@@ -1,4 +1,5 @@
-﻿"use strict";
+﻿
+"use strict";
 
 const DASHBOARD_API_URL = "http://127.0.0.1:8000";
 
@@ -44,7 +45,8 @@ async function loadStudentDashboard() {
             : user.role;
 
         if (String(role || "").toLowerCase() !== "student") {
-            errorBox.textContent = "This dashboard is available to student accounts only.";
+            errorBox.textContent =
+                "This dashboard is available to student accounts only.";
             errorBox.classList.remove("d-none");
             return;
         }
@@ -55,18 +57,24 @@ async function loadStudentDashboard() {
         );
 
         if (!registrationsResponse.ok) {
-            if (registrationsResponse.status === 401 || registrationsResponse.status === 403) {
+            if (
+                registrationsResponse.status === 401 ||
+                registrationsResponse.status === 403
+            ) {
                 sessionStorage.removeItem("access_token");
                 window.location.href = "login.html";
                 return;
             }
+
             throw new Error("Could not load your registrations.");
         }
 
         const registrations = await registrationsResponse.json();
 
         if (!Array.isArray(registrations)) {
-            throw new Error("The registrations response was not in the expected format.");
+            throw new Error(
+                "The registrations response was not in the expected format."
+            );
         }
 
         document.getElementById("dashboardWelcome").textContent =
@@ -77,7 +85,10 @@ async function loadStudentDashboard() {
 
         await loadDashboardCertificates(headers);
     } catch (error) {
-        errorBox.textContent = error.message || "Something went wrong while loading your dashboard.";
+        errorBox.textContent =
+            error.message ||
+            "Something went wrong while loading your dashboard.";
+
         errorBox.classList.remove("d-none");
         retryButton.classList.remove("d-none");
     } finally {
@@ -95,16 +106,22 @@ function renderRegistrations(registrations) {
         if (!date) return false;
 
         const eventEnd = new Date(`${date}T${endTime}`);
+
         return !Number.isNaN(eventEnd.getTime()) && eventEnd < now;
     };
 
     const isCompleted = (registration) => {
-        const registrationStatus = String(registration.registration_status || "").toLowerCase();
+        const registrationStatus = String(
+            registration.registration_status || ""
+        ).toLowerCase();
+
         const eventStatus = String(registration.status || "").toLowerCase();
 
         return registrationStatus === "registered" &&
-            (eventStatus === "completed" ||
-                (eventStatus !== "cancelled" && isPast(registration)));
+            (
+                eventStatus === "completed" ||
+                (eventStatus !== "cancelled" && isPast(registration))
+            );
     };
 
     const upcoming = registrations.filter((registration) =>
@@ -115,9 +132,14 @@ function renderRegistrations(registrations) {
 
     const completed = registrations.filter(isCompleted);
 
-    document.getElementById("totalRegistrations").textContent = registrations.length;
-    document.getElementById("upcomingCount").textContent = upcoming.length;
-    document.getElementById("completedCount").textContent = completed.length;
+    document.getElementById("totalRegistrations").textContent =
+        registrations.length;
+
+    document.getElementById("upcomingCount").textContent =
+        upcoming.length;
+
+    document.getElementById("completedCount").textContent =
+        completed.length;
 
     const upcomingContainer = document.getElementById("upcomingEvents");
     upcomingContainer.replaceChildren();
@@ -162,24 +184,60 @@ function createRegistrationCard(registration) {
     category.className = "text-secondary mb-2";
     category.textContent = registration.category || "University event";
 
+    // Display the event date in a consistent format.
     const date = document.createElement("p");
     date.className = "mb-1";
     date.textContent = `Date: ${formatDate(registration.event_date)}`;
 
+    // Display start and end times when available.
     const time = document.createElement("p");
     time.className = "mb-1";
     time.textContent = `Time: ${formatTime(registration.start_time)}${
-        registration.end_time ? ` - ${formatTime(registration.end_time)}` : ""
+        registration.end_time
+            ? ` - ${formatTime(registration.end_time)}`
+            : ""
     }`;
 
+    // Display venue for offline events and a safe meeting link for online events.
     const location = document.createElement("p");
     location.className = "mb-2";
-    location.textContent = `Venue/Mode: ${registration.venue || registration.mode || "Not specified"}`;
+
+    const mode = String(registration.mode || "").trim().toLowerCase();
+    const isOnline = mode === "online";
+    const meetingLink = String(registration.meeting_link || "").trim();
+
+    if (isOnline) {
+        location.textContent = "Online event";
+
+        if (/^https?:\/\//i.test(meetingLink)) {
+            const link = document.createElement("a");
+            link.href = meetingLink;
+            link.textContent = "Join meeting";
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+
+            location.append(
+                document.createTextNode(" - "),
+                link
+            );
+        } else {
+            location.append(
+                document.createTextNode(" - Meeting link not available")
+            );
+        }
+    } else {
+        location.textContent =
+            `Offline event - Venue: ${registration.venue || "Venue not specified"}`;
+    }
 
     const status = document.createElement("span");
     status.className = "badge align-self-start mb-3";
-    const registrationStatus = registration.registration_status || "Unknown";
+
+    const registrationStatus =
+        registration.registration_status || "Unknown";
+
     status.textContent = registrationStatus;
+
     status.classList.add(
         registrationStatus === "Registered"
             ? "text-bg-success"
@@ -190,14 +248,29 @@ function createRegistrationCard(registration) {
 
     const eventStatus = document.createElement("p");
     eventStatus.className = "small text-secondary mb-3";
-    eventStatus.textContent = `Event status: ${registration.status || "Unknown"}`;
+    eventStatus.textContent =
+        `Event status: ${registration.status || "Unknown"}`;
 
     const detailsLink = document.createElement("a");
-    detailsLink.className = "btn btn-outline-primary btn-sm mt-auto";
-    detailsLink.href = `event-details.html?id=${encodeURIComponent(registration.event_id)}`;
+    detailsLink.className =
+        "btn btn-outline-primary btn-sm mt-auto";
+
+    detailsLink.href =
+        `event-details.html?id=${encodeURIComponent(registration.event_id)}`;
+
     detailsLink.textContent = "View event details";
 
-    body.append(title, category, date, time, location, status, eventStatus, detailsLink);
+    body.append(
+        title,
+        category,
+        date,
+        time,
+        location,
+        status,
+        eventStatus,
+        detailsLink
+    );
+
     card.appendChild(body);
     column.appendChild(card);
 
@@ -213,22 +286,32 @@ async function loadDashboardCertificates(headers) {
     errorMessage.classList.add("d-none");
 
     try {
-        const response = await fetch(`${DASHBOARD_API_URL}/certificates/me`, {
-            headers
-        });
+        const response = await fetch(
+            `${DASHBOARD_API_URL}/certificates/me`,
+            { headers }
+        );
 
         if (!response.ok) {
-            throw new Error("Certificate information is currently unavailable.");
+            throw new Error(
+                "Certificate information is currently unavailable."
+            );
         }
 
         const certificates = await response.json();
 
         if (!Array.isArray(certificates)) {
-            throw new Error("Certificate data was not in the expected format.");
+            throw new Error(
+                "Certificate data was not in the expected format."
+            );
         }
 
-        document.getElementById("certificateCount").textContent = certificates.length;
-        emptyMessage.classList.toggle("d-none", certificates.length > 0);
+        document.getElementById("certificateCount").textContent =
+            certificates.length;
+
+        emptyMessage.classList.toggle(
+            "d-none",
+            certificates.length > 0
+        );
 
         certificates.forEach((certificate) => {
             const column = document.createElement("div");
@@ -242,7 +325,8 @@ async function loadDashboardCertificates(headers) {
 
             const title = document.createElement("h3");
             title.className = "h6 card-title";
-            title.textContent = certificate.title ||
+            title.textContent =
+                certificate.title ||
                 certificate.event_title ||
                 "Event certificate";
 
@@ -252,17 +336,23 @@ async function loadDashboardCertificates(headers) {
 
             const issued = document.createElement("p");
             issued.className = "small mb-0";
-            issued.textContent = `Issued: ${formatDate(certificate.issued_at)}`;
+            issued.textContent =
+                `Issued: ${formatDate(certificate.issued_at)}`;
 
             body.append(title, category, issued);
 
             if (certificate.verification_path) {
                 const link = document.createElement("a");
-                link.className = "btn btn-sm btn-outline-primary mt-3";
-                link.href = `${DASHBOARD_API_URL}${certificate.verification_path}`;
+                link.className =
+                    "btn btn-sm btn-outline-primary mt-3";
+
+                link.href =
+                    `${DASHBOARD_API_URL}${certificate.verification_path}`;
+
                 link.target = "_blank";
                 link.rel = "noopener noreferrer";
                 link.textContent = "Verify certificate";
+
                 body.appendChild(link);
             }
 
@@ -273,7 +363,10 @@ async function loadDashboardCertificates(headers) {
     } catch (error) {
         document.getElementById("certificateCount").textContent = "—";
         emptyMessage.classList.add("d-none");
-        errorMessage.textContent = error.message || "Could not load certificates.";
+
+        errorMessage.textContent =
+            error.message || "Could not load certificates.";
+
         errorMessage.classList.remove("d-none");
     }
 }
@@ -281,8 +374,15 @@ async function loadDashboardCertificates(headers) {
 function formatDate(value) {
     if (!value) return "Not specified";
 
-    const date = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return String(value);
+    // Handle both date-only values and full date-time strings.
+    const dateValue = String(value);
+    const datePart = dateValue.includes("T")
+        ? dateValue.split("T")[0]
+        : dateValue;
+
+    const date = new Date(`${datePart}T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) return dateValue;
 
     return date.toLocaleDateString(undefined, {
         year: "numeric",
