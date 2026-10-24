@@ -124,8 +124,10 @@ function renderRegistrations(registrations) {
             );
     };
 
+    // Treat registration and event statuses case-insensitively.
     const upcoming = registrations.filter((registration) =>
-        registration.registration_status === "Registered" &&
+        String(registration.registration_status || "").toLowerCase() ===
+            "registered" &&
         String(registration.status || "").toLowerCase() === "published" &&
         !isCompleted(registration)
     );
@@ -153,16 +155,17 @@ function renderRegistrations(registrations) {
         upcoming.length > 0
     );
 
+    // EV-77: Show only completed registrations in event history.
     const historyContainer = document.getElementById("registrationHistory");
     historyContainer.replaceChildren();
 
-    registrations.forEach((registration) => {
+    completed.forEach((registration) => {
         historyContainer.appendChild(createRegistrationCard(registration));
     });
 
     document.getElementById("historyEmpty").classList.toggle(
         "d-none",
-        registrations.length > 0
+        completed.length > 0
     );
 }
 
@@ -184,12 +187,10 @@ function createRegistrationCard(registration) {
     category.className = "text-secondary mb-2";
     category.textContent = registration.category || "University event";
 
-    // Display the event date in a consistent format.
     const date = document.createElement("p");
     date.className = "mb-1";
     date.textContent = `Date: ${formatDate(registration.event_date)}`;
 
-    // Display start and end times when available.
     const time = document.createElement("p");
     time.className = "mb-1";
     time.textContent = `Time: ${formatTime(registration.start_time)}${
@@ -198,7 +199,6 @@ function createRegistrationCard(registration) {
             : ""
     }`;
 
-    // Display venue for offline events and a safe meeting link for online events.
     const location = document.createElement("p");
     location.className = "mb-2";
 
@@ -374,7 +374,6 @@ async function loadDashboardCertificates(headers) {
 function formatDate(value) {
     if (!value) return "Not specified";
 
-    // Handle both date-only values and full date-time strings.
     const dateValue = String(value);
     const datePart = dateValue.includes("T")
         ? dateValue.split("T")[0]
