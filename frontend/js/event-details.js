@@ -241,15 +241,43 @@ async function loadDetails() {
 
         setText(
             "detailTime",
-            formatTime(data.start_time) + " – " + formatTime(data.end_time)
+            `${formatTime(data.start_time)} - ${formatTime(data.end_time)}`
         );
 
-        setText(
-            "detailLocation",
-            (data.mode || "").toLowerCase() === "online"
-                ? "Online event. Meeting details are not exposed on the public discovery page."
-                : data.venue || "Venue not specified"
-        );
+        // Display the venue for offline events and a safe, clickable
+        // meeting link for online events.
+        const locationElement = document.getElementById("detailLocation");
+        const isOnline = (data.mode || "").trim().toLowerCase() === "online";
+
+        if (locationElement) {
+            locationElement.replaceChildren();
+
+            if (isOnline) {
+                locationElement.append(document.createTextNode("Online event"));
+
+                const meetingLink = (data.meeting_link || "").trim();
+
+                if (/^https?:\/\//i.test(meetingLink)) {
+                    const link = document.createElement("a");
+                    link.href = meetingLink;
+                    link.textContent = "Join meeting";
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+
+                    locationElement.append(
+                        document.createTextNode(" — "),
+                        link
+                    );
+                } else {
+                    locationElement.append(
+                        document.createTextNode(" — Meeting link not available")
+                    );
+                }
+            } else {
+                locationElement.textContent =
+                    `Offline event — Venue: ${data.venue || "Venue not specified"}`;
+            }
+        }
 
         setText(
             "detailCapacity",
