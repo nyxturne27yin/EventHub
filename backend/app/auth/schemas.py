@@ -125,3 +125,31 @@ class ProfileUpdateRequest(BaseModel):
             )
 
         return value
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Reset token is required")
+        return value
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value):
+        if len(value) < 8 or len(value) > 128:
+            raise ValueError("Password must be between 8 and 128 characters")
+        if not re.search(r"[A-Za-z]", value):
+            raise ValueError("Password must contain a letter")
+        if not re.search(r"\d", value):
+            raise ValueError("Password must contain a number")
+        if not re.search(r"[@$!%*?&]", value):
+            raise ValueError("Password must contain a special character")
+        return value
