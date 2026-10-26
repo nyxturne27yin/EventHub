@@ -380,6 +380,8 @@ document.getElementById("organizerProfileForm")?.addEventListener(
         };
 
         saveButton.disabled = true;
+        saveButton.setAttribute("aria-busy", "true");
+        saveButton.textContent = "Saving…";
 
         try {
             const response = await fetch(
@@ -427,6 +429,8 @@ document.getElementById("organizerProfileForm")?.addEventListener(
             showMessage(err.message, "danger");
         } finally {
             saveButton.disabled = false;
+            saveButton.removeAttribute("aria-busy");
+            saveButton.textContent = "Save Profile";
         }
     }
 );

@@ -404,7 +404,16 @@ function formatTime(value) {
     return `${displayHours}:${minutes} ${suffix}`;
 }
 
-document.getElementById("dashboardRetry")?.addEventListener(
-    "click",
-    loadStudentDashboard
-);
+document.getElementById("dashboardRetry")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = "Retrying…";
+    try {
+        await loadStudentDashboard();
+    } finally {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.textContent = "Try again";
+    }
+});

@@ -3,23 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Create Event - EventHub</title>
+    <title>Create an event | EventHub</title>
+    <meta name="description" content="Create an event and submit it for administrator approval on EventHub.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="css/style.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-    <nav class="navbar navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg bg-white border-bottom" aria-label="Main navigation">
         <div class="container">
-            <a class="navbar-brand" href="index.html">EventHub</a>
-            <a class="btn btn-outline-light btn-sm" href="index.html">Back to Home</a>
+            <a class="navbar-brand fw-bold" href="index.html">EventHub</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#createEventNavigation" aria-controls="createEventNavigation" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="createEventNavigation">
+                <div class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+                    <a class="nav-link" href="index.html#eventSearch">Discover events</a>
+                    <a class="nav-link" href="profile.html">Profile</a>
+                    <a class="btn btn-outline-primary btn-sm" href="student-dashboard.html">Dashboard</a>
+                </div>
+            </div>
         </div>
     </nav>
 
     <main class="container py-5">
         <div class="card shadow-sm mx-auto" style="max-width: 850px;">
             <div class="card-body p-4">
-                <h2 class="mb-2">Create an Event</h2>
-                <p class="text-muted">Fill in the details to create your event.</p>
+                <h1 class="h2 mb-2">Create an event</h1>
+                <p class="text-secondary">Add the event details below. New events are saved as drafts before you submit them for approval.</p>
 
                 <div id="pageMessage" class="alert d-none" role="alert"></div>
 
@@ -31,7 +41,8 @@
 
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
-                        <textarea id="description" name="description" class="form-control" rows="4" required></textarea>
+                        <textarea id="description" name="description" class="form-control" rows="4" maxlength="5000" required aria-describedby="descriptionHelp"></textarea>
+                        <div id="descriptionHelp" class="form-text">Include the purpose, audience, and what attendees can expect.</div>
                     </div>
 
                     <div class="mb-3">
@@ -83,7 +94,7 @@
                         <input type="datetime-local" id="registration_deadline" name="registration_deadline" class="form-control" required>
                     </div>
 
-                    <p class="small text-muted mb-4">New events are saved as drafts. You can publish an event after it has been created and validated.</p>
+                    <p class="small text-secondary mb-4">After saving, use <strong>Submit for approval</strong>. The event appears in public discovery only after an administrator approves it.</p>
 
                     <button id="submitButton" type="submit" class="btn btn-primary">Create Event</button>
                     <a href="index.html" class="btn btn-outline-secondary ms-2">Cancel</a>
@@ -93,6 +104,7 @@
         </div>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/create-event.js"></script>
 </body>
 </html>

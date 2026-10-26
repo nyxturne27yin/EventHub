@@ -3,27 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login - EventHub</title>
+    <title>Log in | EventHub</title>
+    <meta name="description" content="Log in to manage your EventHub registrations and campus events.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <main class="container py-5" style="max-width: 500px;">
-        <h1 class="mb-4">EventHub Login</h1>
+    <nav class="navbar navbar-expand-lg bg-white border-bottom" aria-label="Main navigation">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">EventHub</a>
+            <a class="btn btn-outline-primary btn-sm" href="index.html#eventSearch">Explore events</a>
+        </div>
+    </nav>
+    <main class="container py-5">
+      <div class="row justify-content-center">
+        <div class="col-12 col-sm-10 col-md-7 col-lg-5">
+        <div class="card shadow-sm"><div class="card-body p-4 p-md-5">
+        <p class="small text-uppercase fw-semibold text-primary mb-2">Welcome back</p>
+        <h1 class="h2 mb-2">Log in to EventHub</h1>
+        <p class="text-secondary mb-4">Access your registrations, events, and account.</p>
         <form id="loginForm">
             <div class="mb-3">
                 <label for="email" class="form-label">UAP Email</label>
-                <input id="email" type="email" class="form-control" required>
+                <input id="email" name="email" type="email" class="form-control" autocomplete="username" maxlength="100" required>
             </div>
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
-                <input id="password" type="password" class="form-control" required>
+                <div class="input-group">
+                <input id="password" name="password" type="password" class="form-control" autocomplete="current-password" required aria-describedby="togglePasswordHelp">
+                <button id="togglePassword" class="btn btn-outline-secondary" type="button" aria-pressed="false" aria-label="Show password">Show</button>
             </div>
-            <div id="loginError" class="alert alert-danger d-none"></div>
-            <button type="submit" class="btn btn-primary w-100">Login</button>
+            <span id="togglePasswordHelp" class="visually-hidden">Toggle password visibility.</span>
+            </div>
+            <div id="loginError" class="alert alert-danger d-none" role="alert" aria-live="polite"></div>
+            <button id="loginSubmit" type="submit" class="btn btn-primary w-100">Log in</button>
         </form>
-        <p class="mt-3"><a href="register.html">Create an account</a></p>
-        <p><a href="profile.html">Go to Profile</a></p>
+        <p class="mt-4 mb-0 text-center">New to EventHub? <a href="register.html">Create an account</a></p>
+        </div></div></div></div>
     </main>
     <script src="js/login.js"></script>
 </body>

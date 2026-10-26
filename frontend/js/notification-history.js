@@ -6,6 +6,9 @@ const notificationError = document.getElementById("notificationError");
 const notificationErrorMessage = document.getElementById("notificationErrorMessage");
 const notificationEmpty = document.getElementById("notificationEmpty");
 const notificationList = document.getElementById("notificationList");
+const refreshButton = document.getElementById("refreshNotifications");
+const retryButton = document.getElementById("retryNotifications");
+let notificationRequestInProgress = false;
 
 function showNotificationState(state) {
     notificationLoading.classList.toggle("d-none", state !== "loading");
@@ -93,12 +96,19 @@ function createNotificationCard(notification) {
 }
 
 async function loadNotifications() {
+    if (notificationRequestInProgress) return;
+    notificationRequestInProgress = true;
+    if (refreshButton) { refreshButton.disabled = true; refreshButton.setAttribute("aria-busy", "true"); }
+    if (retryButton) retryButton.disabled = true;
     showNotificationState("loading");
     notificationList.replaceChildren();
 
     const token = sessionStorage.getItem("access_token");
 
     if (!token) {
+        notificationRequestInProgress = false;
+        if (refreshButton) { refreshButton.disabled = false; refreshButton.removeAttribute("aria-busy"); }
+        if (retryButton) retryButton.disabled = false;
         window.location.href = "login.html";
         return;
     }
@@ -140,13 +150,14 @@ async function loadNotifications() {
         notificationErrorMessage.textContent =
             error.message || "Unable to load notifications. Check your connection.";
         showNotificationState("error");
+    } finally {
+        notificationRequestInProgress = false;
+        if (refreshButton) { refreshButton.disabled = false; refreshButton.removeAttribute("aria-busy"); }
+        if (retryButton) retryButton.disabled = false;
     }
 }
 
-document.getElementById("refreshNotifications")
-    .addEventListener("click", loadNotifications);
-
-document.getElementById("retryNotifications")
-    .addEventListener("click", loadNotifications);
+refreshButton?.addEventListener("click", loadNotifications);
+retryButton?.addEventListener("click", loadNotifications);
 
 loadNotifications();
