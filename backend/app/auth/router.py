@@ -1,3 +1,6 @@
+from fastapi.security import OAuth2PasswordRequestForm
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +18,39 @@ from app.models.role import Role
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+@router.post("/swagger-login", response_model=TokenResponse, include_in_schema=False)
+async def swagger_login(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(User).where(User.email == form_data.username)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or not verify_password(
+        form_data.password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
+    access_token = create_access_token({"sub": str(user.id)})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
+
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)

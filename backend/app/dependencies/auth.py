@@ -10,7 +10,7 @@ from app.database.database import get_db
 from app.models.user import User
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/swagger-login")
 
 
 async def get_current_user(
