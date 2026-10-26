@@ -85,3 +85,45 @@ def test_password_requires_special_character():
             password="StrongPass123",
             confirm_password="StrongPass123",
         )
+def test_valid_password_reset_request():
+    from app.auth.schemas import PasswordResetRequest
+
+    data = PasswordResetRequest(email="student@example.com")
+    assert str(data.email) == "student@example.com"
+
+
+def test_password_reset_request_rejects_invalid_email():
+    from app.auth.schemas import PasswordResetRequest
+
+    with pytest.raises(ValidationError):
+        PasswordResetRequest(email="not-an-email")
+
+
+def test_valid_password_reset_confirmation():
+    from app.auth.schemas import PasswordResetConfirmRequest
+
+    data = PasswordResetConfirmRequest(
+        token="sample-reset-token",
+        new_password="StrongPass123!",
+    )
+    assert data.token == "sample-reset-token"
+
+
+def test_password_reset_confirmation_rejects_weak_password():
+    from app.auth.schemas import PasswordResetConfirmRequest
+
+    with pytest.raises(ValidationError):
+        PasswordResetConfirmRequest(
+            token="sample-reset-token",
+            new_password="weakpassword",
+        )
+
+
+def test_password_reset_confirmation_rejects_blank_token():
+    from app.auth.schemas import PasswordResetConfirmRequest
+
+    with pytest.raises(ValidationError):
+        PasswordResetConfirmRequest(
+            token="   ",
+            new_password="StrongPass123!",
+        )

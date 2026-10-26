@@ -1,17 +1,28 @@
-from fastapi.security import OAuth2PasswordRequestForm
+
+import hashlib
+import secrets
+from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.password_reset_email import send_password_reset_email
 from app.auth.schemas import (
-    RegisterRequest,
     LoginRequest,
-    TokenResponse,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
     ProfileUpdateRequest,
+    RegisterRequest,
+    TokenResponse,
 )
-from app.auth.utils import hash_password, verify_password, create_access_token
+from app.auth.utils import (
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.role import Role
@@ -19,7 +30,12 @@ from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/swagger-login", response_model=TokenResponse, include_in_schema=False)
+
+@router.post(
+    "/swagger-login",
+    response_model=TokenResponse,
+    include_in_schema=False,
+)
 async def swagger_login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db),
@@ -30,8 +46,7 @@ async def swagger_login(
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(
-        form_data.password,
-        user.password_hash,
+        form_data.password, user.password_hash
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -44,13 +59,10 @@ async def swagger_login(
             detail="User account is inactive",
         )
 
-    access_token = create_access_token({"sub": str(user.id)})
-
     return {
-        "access_token": access_token,
+        "access_token": create_access_token({"sub": str(user.id)}),
         "token_type": "bearer",
     }
-
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -61,9 +73,7 @@ async def register(
     result = await db.execute(
         select(User).where(User.email == request.email)
     )
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
+    if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
@@ -110,8 +120,7 @@ async def login(
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(
-        request.password,
-        user.password_hash,
+        request.password, user.password_hash
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -124,12 +133,87 @@ async def login(
             detail="User account is inactive",
         )
 
-    access_token = create_access_token({"sub": str(user.id)})
-
     return {
-        "access_token": access_token,
+        "access_token": create_access_token({"sub": str(user.id)}),
         "token_type": "bearer",
     }
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    # Always return the same response to prevent account enumeration.
+    generic_response = {
+        "message": (
+            "If an eligible account exists, password reset instructions "
+            "will be sent to its email address."
+        )
+    }
+
+    result = await db.execute(
+        select(User).where(User.email == str(request.email))
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None or not user.is_active:
+        return generic_response
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+    user.password_reset_token_hash = token_hash
+    user.password_reset_expires_at = datetime.utcnow() + timedelta(
+        minutes=30
+    )
+
+    await db.commit()
+
+    background_tasks.add_task(
+        send_password_reset_email,
+        user.email,
+        raw_token,
+    )
+
+    return generic_response
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: PasswordResetConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    token_hash = hashlib.sha256(
+        request.token.encode("utf-8")
+    ).hexdigest()
+
+    result = await db.execute(
+        select(User).where(
+            User.password_reset_token_hash == token_hash
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if (
+        user is None
+        or user.password_reset_expires_at is None
+        or user.password_reset_expires_at <= datetime.utcnow()
+        or not user.is_active
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token",
+        )
+
+    user.password_hash = hash_password(request.new_password)
+    user.password_reset_token_hash = None
+    user.password_reset_expires_at = None
+
+    await db.commit()
+
+    return {"message": "Password has been reset successfully."}
 
 
 @router.get("/me")
@@ -156,9 +240,7 @@ async def update_me(
             User.id != current_user.id,
         )
     )
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
+    if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
