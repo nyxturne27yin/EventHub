@@ -158,7 +158,8 @@ async function loadUsers() {
 
         const saveButton = createButton("Save", async () => {
             saveButton.disabled = true;
-            saveButton.textContent = "Saving...";
+            saveButton.setAttribute("aria-busy", "true");
+            saveButton.textContent = "Saving…";
 
             try {
                 await apiRequest(`/admin/users/${user.id}`, {
@@ -179,6 +180,7 @@ async function loadUsers() {
                 showMessage(`Could not update user: ${error.message}`);
             } finally {
                 saveButton.disabled = false;
+                saveButton.removeAttribute("aria-busy");
                 saveButton.textContent = "Save";
             }
         });
@@ -216,7 +218,8 @@ async function loadEvents() {
 
         const saveButton = createButton("Update", async () => {
             saveButton.disabled = true;
-            saveButton.textContent = "Updating...";
+            saveButton.setAttribute("aria-busy", "true");
+            saveButton.textContent = "Updating…";
 
             try {
                 await apiRequest(
@@ -241,6 +244,7 @@ async function loadEvents() {
                 );
             } finally {
                 saveButton.disabled = false;
+                saveButton.removeAttribute("aria-busy");
                 saveButton.textContent = "Update";
             }
         });
@@ -297,23 +301,35 @@ document.getElementById("logoutButton")?.addEventListener("click", () => {
     window.location.href = "login.html";
 });
 
-document.getElementById("refreshUsers")?.addEventListener("click", async () => {
+document.getElementById("refreshUsers")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
     try {
         hideMessage();
         await loadUsers();
         showMessage("User list refreshed.", "success");
     } catch (error) {
         showMessage(`Could not refresh users: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
     }
 });
 
-document.getElementById("refreshEvents")?.addEventListener("click", async () => {
+document.getElementById("refreshEvents")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
     try {
         hideMessage();
         await loadEvents();
         showMessage("Event list refreshed.", "success");
     } catch (error) {
         showMessage(`Could not refresh events: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
     }
 });
 

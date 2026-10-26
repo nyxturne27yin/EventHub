@@ -100,7 +100,8 @@ form.addEventListener("submit", async (event) => {
     }
 
     submitButton.disabled = true;
-    submitButton.textContent = "Creating...";
+    submitButton.setAttribute("aria-busy", "true");
+    submitButton.textContent = "Creating…";
 
     try {
         const response = await fetch(`${API_BASE_URL}/events/`, {
@@ -112,7 +113,7 @@ form.addEventListener("submit", async (event) => {
             body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
+        const result = await response.json().catch(() => ({}));
 
         if (!response.ok) {
             const detail = result.detail;
@@ -151,9 +152,10 @@ form.addEventListener("submit", async (event) => {
                             : (detail || "Could not publish the event."));
                     }
                     showMessage("Event submitted for approval. It will appear in Event Discovery after an administrator approves it.", "success");
-                    publishButton.textContent = "Published";
+                    publishButton.textContent = "Submitted for approval";
                     publishButton.classList.remove("btn-success");
                     publishButton.classList.add("btn-outline-success");
+                    publishButton.disabled = true;
                 } catch (publishError) {
                     showMessage(publishError.message || "Could not publish the event.");
                     publishButton.disabled = false;
@@ -161,6 +163,11 @@ form.addEventListener("submit", async (event) => {
                 }
             });
             postCreateActions.append(publishButton);
+            const dashboardLink = document.createElement("a");
+            dashboardLink.className = "btn btn-outline-primary ms-2 mt-2 mt-sm-0";
+            dashboardLink.href = "profile.html";
+            dashboardLink.textContent = "View profile";
+            postCreateActions.append(dashboardLink);
         }
         form.reset();
         updateModeFields();
@@ -169,6 +176,7 @@ form.addEventListener("submit", async (event) => {
         showMessage(error.message || "Could not connect to the server.");
     } finally {
         submitButton.disabled = false;
+        submitButton.removeAttribute("aria-busy");
         submitButton.textContent = "Create Event";
     }
 });

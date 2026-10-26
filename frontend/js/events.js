@@ -8,6 +8,8 @@ const loadingMessage = document.getElementById("eventSearchLoading");
 const errorMessage = document.getElementById("eventSearchError");
 const emptyMessage = document.getElementById("eventSearchEmpty");
 const resultsContainer = document.getElementById("eventSearchResults");
+const summaryMessage = document.getElementById("eventSearchSummary");
+const submitButton = document.getElementById("eventSearchSubmit");
 
 function hideSearchStates() {
     loadingMessage.classList.add("d-none");
@@ -15,6 +17,7 @@ function hideSearchStates() {
     retryButton.classList.add("d-none");
     emptyMessage.classList.add("d-none");
     resultsContainer.replaceChildren();
+    if (summaryMessage) { summaryMessage.textContent = ""; summaryMessage.classList.add("d-none"); }
 }
 
 function formatDate(value) {
@@ -117,6 +120,7 @@ function showEvent(event) {
 async function loadEvents(searchText = "") {
     hideSearchStates();
     loadingMessage.classList.remove("d-none");
+    if (submitButton) { submitButton.disabled = true; submitButton.setAttribute("aria-busy", "true"); }
 
     const params = new URLSearchParams();
     const normalizedSearch = searchText.trim();
@@ -148,14 +152,26 @@ async function loadEvents(searchText = "") {
         loadingMessage.classList.add("d-none");
         if (upcoming.length === 0) {
             emptyMessage.classList.remove("d-none");
+            if (summaryMessage) {
+                summaryMessage.textContent = normalizedSearch
+                    ? `No upcoming events matched “${normalizedSearch}”.`
+                    : "No upcoming published events are available right now.";
+                summaryMessage.classList.remove("d-none");
+            }
             return;
         }
         upcoming.forEach(showEvent);
+        if (summaryMessage) {
+            summaryMessage.textContent = `${upcoming.length} upcoming event${upcoming.length === 1 ? "" : "s"} found.`;
+            summaryMessage.classList.remove("d-none");
+        }
     } catch (error) {
         loadingMessage.classList.add("d-none");
         errorMessage.textContent = error.message || "Cannot connect to EventHub API.";
         errorMessage.classList.remove("d-none");
         retryButton.classList.remove("d-none");
+    } finally {
+        if (submitButton) { submitButton.disabled = false; submitButton.removeAttribute("aria-busy"); }
     }
 }
 
