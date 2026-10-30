@@ -256,3 +256,37 @@ def test_organizer_can_create_event(browser, frontend_server):
     assert browser.execute_script(
         "return window.createdEventPayload.title"
     ) == "Selenium Test Event"
+
+
+def test_student_cannot_access_admin_dashboard(browser, frontend_server):
+    browser.get(f"{frontend_server}/login.html")
+    browser.execute_script(
+        "sessionStorage.setItem('access_token', 'mock-token')"
+    )
+
+    browser.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+                window.fetch = async () => ({
+                    ok: true,
+                    json: async () => ({role: "student"})
+                });
+            """
+        },
+    )
+
+    browser.get(f"{frontend_server}/admin-dashboard.html")
+
+    message = WebDriverWait(browser, 10).until(
+        lambda driver: driver.find_element(By.ID, "pageMessage")
+        if "d-none" not in driver.find_element(
+            By.ID, "pageMessage"
+        ).get_attribute("class")
+        else False
+    )
+
+    assert "Access denied" in message.text
+    assert "d-none" in browser.find_element(
+        By.ID, "dashboardContent"
+    ).get_attribute("class")

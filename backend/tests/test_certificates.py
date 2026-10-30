@@ -254,3 +254,26 @@ def test_student_can_view_certificate_history_for_completed_event():
     assert certificates[0]["certificate_id"] == certificate_id
     assert certificates[0]["event_id"] == event.id
     assert certificates[0]["event_title"] == event.title
+
+
+def test_student_cannot_generate_certificate():
+    event = make_event(status="completed")
+    client, db, _ = make_client(event)
+
+    async def override_student():
+        return db.student
+
+    app.dependency_overrides[get_current_user] = override_student
+
+    try:
+        response = client.post(
+            "/certificates/events/10/generate",
+            json={"student_id": 2, "category": "Academic"},
+        )
+
+        assert response.status_code == 403
+        assert db.added is None
+        assert db.commit_count == 0
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
