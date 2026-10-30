@@ -1,4 +1,4 @@
-﻿from functools import partial
+from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -7,6 +7,7 @@ import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1]
@@ -85,3 +86,173 @@ def test_event_details_page_loads(browser, frontend_server):
     assert browser.find_element(By.ID, "eventDetails")
     assert browser.find_element(By.ID, "registerForEvent")
     assert browser.find_element(By.ID, "registrationMessage")
+
+def test_invalid_login_shows_error(browser, frontend_server):
+    browser.get(f"{frontend_server}/login.html")
+
+    browser.execute_script("""
+        window.fetch = async () => ({
+            ok: false,
+            json: async () => ({ detail: "Invalid email or password" })
+        });
+""")
+
+    browser.find_element(By.ID, "email").send_keys("student@uap-bd.edu")
+    browser.find_element(By.ID, "password").send_keys("wrongpassword")
+    browser.execute_script("arguments[0].requestSubmit()", browser.find_element(By.ID, "loginForm"))
+
+    error = browser.find_element(By.ID, "loginError")
+
+    assert error.text == "Invalid email or password"
+    assert "d-none" not in error.get_attribute("class")
+
+
+def test_successful_login_redirects_to_profile(browser, frontend_server):
+    browser.get(f"{frontend_server}/login.html")
+
+    browser.execute_script("""
+        window.fetch = async () => ({
+            ok: true,
+            json: async () => ({ access_token: "mock-access-token" })
+        });
+""")
+
+    browser.find_element(By.ID, "email").send_keys("student@uap-bd.edu")
+    browser.find_element(By.ID, "password").send_keys("correctpassword")
+
+    browser.execute_script(
+        "arguments[0].requestSubmit()",
+        browser.find_element(By.ID, "loginForm"),
+    )
+
+    WebDriverWait(browser, 10).until(
+        lambda driver: driver.current_url.endswith("/profile.html")
+    )
+
+    assert browser.execute_script(
+        "return sessionStorage.getItem('access_token')"
+    ) == "mock-access-token"
+
+
+def test_student_cannot_access_create_event_page(browser, frontend_server):
+    browser.get(f"{frontend_server}/login.html")
+    browser.execute_script(
+        "sessionStorage.setItem('access_token', 'mock-token')"
+    )
+
+    browser.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+                window.fetch = async (url) => {
+                    if (String(url).endsWith("/auth/me")) {
+                        return {
+                            ok: true,
+                            json: async () => ({role: "student"})
+                        };
+                    }
+                    return {
+                        ok: false,
+                        json: async () => ({detail: "Unexpected request"})
+                    };
+                };
+            """
+        },
+    )
+
+    browser.get(f"{frontend_server}/create-event.html")
+
+    message = WebDriverWait(browser, 10).until(
+        lambda driver: driver.find_element(By.ID, "pageMessage")
+        if "d-none" not in driver.find_element(
+            By.ID, "pageMessage"
+        ).get_attribute("class")
+        else False
+    )
+
+    assert "Access denied" in message.text
+    assert "d-none" in browser.find_element(
+        By.ID, "createEventForm"
+    ).get_attribute("class")
+
+
+def test_organizer_can_create_event(browser, frontend_server):
+    browser.get(f"{frontend_server}/login.html")
+    browser.execute_script(
+        "sessionStorage.setItem('access_token', 'mock-token')"
+    )
+
+    browser.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+                window.fetch = async (url, options = {}) => {
+                    const requestUrl = String(url);
+
+                    if (requestUrl.endsWith("/auth/me")) {
+                        return {
+                            ok: true,
+                            json: async () => ({role: "organizer"})
+                        };
+                    }
+
+                    if (
+                        requestUrl.endsWith("/events/") &&
+                        options.method === "POST"
+                    ) {
+                        window.createdEventPayload = JSON.parse(options.body);
+                        return {
+                            ok: true,
+                            json: async () => ({event: {id: 123}})
+                        };
+                    }
+
+                    return {
+                        ok: false,
+                        json: async () => ({detail: "Unexpected request"})
+                    };
+                };
+            """
+        },
+    )
+
+    browser.get(f"{frontend_server}/create-event.html")
+
+    WebDriverWait(browser, 10).until(
+        lambda driver: "d-none" not in driver.find_element(
+            By.ID, "createEventForm"
+        ).get_attribute("class")
+    )
+
+    browser.find_element(By.ID, "title").send_keys("Selenium Test Event")
+    browser.find_element(By.ID, "description").send_keys(
+        "Event created during Selenium testing."
+    )
+    browser.find_element(By.ID, "category").send_keys("Workshop")
+    browser.find_element(By.ID, "event_date").send_keys("12312030")
+    browser.find_element(By.ID, "start_time").send_keys("1000AM")
+    browser.find_element(By.ID, "end_time").send_keys("1100AM")
+    browser.find_element(By.ID, "capacity").send_keys("50")
+    browser.find_element(By.ID, "venue").send_keys("UAP Campus")
+    browser.execute_script("""
+        const deadline = document.getElementById('registration_deadline');
+        deadline.value = '2030-12-30T10:00';
+        deadline.dispatchEvent(new Event('input', {bubbles: true}));
+        deadline.dispatchEvent(new Event('change', {bubbles: true}));
+    """)
+
+    browser.find_element(By.ID, "createEventForm").submit()
+
+
+    message = WebDriverWait(browser, 10).until(
+        lambda driver: driver.find_element(By.ID, "pageMessage")
+        if "Event created successfully" in driver.find_element(
+            By.ID, "pageMessage"
+        ).text
+        else False
+    )
+
+    assert "Event created successfully" in message.text
+    assert browser.execute_script(
+        "return window.createdEventPayload.title"
+    ) == "Selenium Test Event"
