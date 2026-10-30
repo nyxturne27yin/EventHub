@@ -520,3 +520,13 @@ def test_student_can_view_registration_history_for_completed_event(
     assert record["registration_status"] == "Registered"
     assert record["title"] == "Test Event"
     assert record["description"] == "Test description"
+
+
+def test_organizer_cannot_view_student_registration_history(
+    registration_api,
+):
+    client, _ = registration_api
+
+    response = client.get("/registrations/me")
+
+    assert response.status_code == 403

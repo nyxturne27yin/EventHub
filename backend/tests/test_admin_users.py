@@ -292,3 +292,15 @@ def test_administrator_cannot_deactivate_own_account():
     finally:
         client.close()
         app.dependency_overrides.clear()
+
+
+def test_organizer_cannot_list_users():
+    client = make_client([], role_name="organizer")
+
+    try:
+        response = client.get("/admin/users")
+
+        assert response.status_code == 403
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
