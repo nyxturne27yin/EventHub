@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, datetime, time, timedelta
 
 from fastapi.testclient import TestClient
@@ -145,6 +146,104 @@ def test_end_time_must_be_after_start_time():
                 start_time="12:00:00",
                 end_time="10:00:00",
             ),
+        )
+
+        assert response.status_code == 422
+        assert state["db"].event is None
+    finally:
+        teardown_client(client)
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "title",
+        "description",
+        "category",
+        "event_date",
+        "start_time",
+        "end_time",
+        "mode",
+        "registration_deadline",
+    ],
+)
+def test_required_fields_are_rejected(missing_field):
+    client, state = setup_client()
+
+    try:
+        payload = valid_payload()
+        payload.pop(missing_field)
+
+        response = client.post("/events/", json=payload)
+
+        assert response.status_code == 422
+        assert state["db"].event is None
+    finally:
+        teardown_client(client)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param(
+            {"mode": "Offline", "venue": None, "meeting_link": None},
+            id="offline-requires-venue",
+        ),
+        pytest.param(
+            {"mode": "Online", "venue": None, "meeting_link": None},
+            id="online-requires-meeting-link",
+        ),
+    ],
+)
+def test_event_mode_requirements_are_enforced(overrides):
+    client, state = setup_client()
+
+    try:
+        response = client.post(
+            "/events/",
+            json=valid_payload(**overrides),
+        )
+
+        assert response.status_code == 422
+        assert state["db"].event is None
+    finally:
+        teardown_client(client)
+
+
+def test_organizer_can_create_online_event():
+    client, state = setup_client()
+
+    try:
+        response = client.post(
+            "/events/",
+            json=valid_payload(
+                mode="Online",
+                venue=None,
+                meeting_link="https://meet.example.com/test-event",
+            ),
+        )
+
+        assert response.status_code == 201
+        assert response.json()["event"]["mode"] == "Online"
+        assert state["db"].event.meeting_link == (
+            "https://meet.example.com/test-event"
+        )
+    finally:
+        teardown_client(client)
+
+
+def test_registration_deadline_must_be_before_event_start():
+    client, state = setup_client()
+
+    try:
+        late_deadline = datetime.combine(
+            date.today() + timedelta(days=11),
+            time(17, 0),
+        ).isoformat()
+
+        response = client.post(
+            "/events/",
+            json=valid_payload(registration_deadline=late_deadline),
         )
 
         assert response.status_code == 422
