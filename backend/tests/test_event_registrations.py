@@ -7,6 +7,7 @@ from app.database.database import get_db
 from app.dependencies.auth import get_current_user
 from app.main import app
 from app.models.event import Event
+from app.models.notification import Notification
 from app.models.registration import EventRegistration
 from app.models.role import Role
 from app.models.user import User
@@ -46,6 +47,7 @@ class FakeDB:
         )
         self.committed = False
         self.refreshed = False
+        self.added_objects = []
 
     async def execute(self, query):
         entities = [
@@ -82,6 +84,19 @@ class FakeDB:
             )
 
         return FakeResult(self.registration)
+
+    def add(self, instance):
+        self.added_objects.append(instance)
+
+        if isinstance(instance, EventRegistration):
+            self.registration = instance
+
+            if self.state is not None:
+                self.state["registration"] = instance
+
+        elif isinstance(instance, Notification):
+            if self.state is not None:
+                self.state["notification"] = instance
 
     async def commit(self):
         self.committed = True
@@ -152,6 +167,7 @@ def registration_api():
         "registration": None,
         "db": None,
         "registered_count": 0,
+        "notification": None,
     }
 
     state["registration"] = EventRegistration(
@@ -530,3 +546,92 @@ def test_organizer_cannot_view_student_registration_history(
     response = client.get("/registrations/me")
 
     assert response.status_code == 403
+
+
+# EV-115: Registration creation and validation tests
+
+def test_student_can_register_for_published_event(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 201
+    assert response.json()["event_id"] == 10
+    assert response.json()["participant_id"] == 3
+    assert response.json()["status"] == "Registered"
+    assert state["registration"] is not None
+    assert state["registration"].status == "Registered"
+    assert state["notification"] is not None
+    assert state["notification"].title == "Registration Successful"
+    assert state["db"].committed is True
+    assert state["db"].refreshed is True
+
+
+def test_organizer_cannot_register_as_student(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(1, "organizer")
+    state["registration"] = None
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 403
+    assert state["registration"] is None
+    assert state["db"].committed is False
+
+
+def test_registration_rejected_after_deadline(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
+    state["event"].registration_deadline = (
+        datetime.now() - timedelta(days=1)
+    )
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Registration deadline has passed"
+    assert state["registration"] is None
+    assert state["db"].committed is False
+
+
+def test_duplicate_registration_is_rejected(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(2, "student")
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Already registered for this event"
+    assert state["registration"].status == "Registered"
+    assert state["db"].committed is False
+
+
+def test_registration_rejected_when_event_does_not_exist(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["event"] = None
+    state["registration"] = None
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+    assert state["registration"] is None
+    assert state["db"].committed is False
+
+
+def test_registration_rejected_for_cancelled_event(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
+    state["event"].status = "cancelled"
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 409
+    assert "cancelled" in response.json()["detail"].lower()
+    assert state["registration"] is None
+    assert state["db"].committed is False
