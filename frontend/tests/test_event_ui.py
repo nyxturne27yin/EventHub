@@ -290,3 +290,103 @@ def test_student_cannot_access_admin_dashboard(browser, frontend_server):
     assert "d-none" in browser.find_element(
         By.ID, "dashboardContent"
     ).get_attribute("class")
+
+
+def test_auth_form_fields_have_associated_labels(browser, frontend_server):
+    for page in ["login.html", "register.html"]:
+        browser.get(f"{frontend_server}/{page}")
+
+        unlabeled_fields = browser.execute_script("""
+            return Array.from(document.querySelectorAll(
+                "form input:not([type='hidden']), form select, form textarea"
+            )).filter(field => {
+                return !field.labels || field.labels.length === 0;
+            }).map(field => field.id || field.name);
+        """)
+
+        assert unlabeled_fields == [], (
+            f"Unlabeled fields on {page}: {unlabeled_fields}"
+        )
+
+
+def test_auth_buttons_have_accessible_names(browser, frontend_server):
+    for page in ["login.html", "register.html"]:
+        browser.get(f"{frontend_server}/{page}")
+
+        unnamed_buttons = browser.execute_script("""
+            return Array.from(document.querySelectorAll("button"))
+                .filter(button =>
+                    !button.innerText.trim() &&
+                    !button.getAttribute("aria-label") &&
+                    !button.getAttribute("aria-labelledby")
+                ).length;
+        """)
+
+        assert unnamed_buttons == 0
+
+
+def test_auth_navigation_has_accessible_name(browser, frontend_server):
+    for page in ["login.html", "register.html"]:
+        browser.get(f"{frontend_server}/{page}")
+
+        navigation = browser.find_element(By.TAG_NAME, "nav")
+
+        assert (
+            navigation.get_attribute("aria-label")
+            or navigation.get_attribute("aria-labelledby")
+        )
+
+
+def test_auth_error_messages_are_announced(browser, frontend_server):
+    for page, error_id in [
+        ("login.html", "loginError"),
+        ("register.html", "registrationError"),
+    ]:
+        browser.get(f"{frontend_server}/{page}")
+
+        error = browser.find_element(By.ID, error_id)
+
+        assert error.get_attribute("role") == "alert"
+        assert error.get_attribute("aria-live") == "polite"
+
+
+def test_registration_password_toggle_supports_keyboard(
+    browser, frontend_server
+):
+    from selenium.webdriver.common.keys import Keys
+
+    browser.get(f"{frontend_server}/register.html")
+
+    password = browser.find_element(By.ID, "password")
+    toggle = browser.find_element(
+        By.CSS_SELECTOR, '[data-toggle-password="password"]'
+    )
+
+    toggle.send_keys(Keys.SPACE)
+
+    assert password.get_attribute("type") == "text"
+    assert toggle.get_attribute("aria-pressed") == "true"
+    assert toggle.get_attribute("aria-label") == "Hide password"
+
+
+def test_auth_pages_have_one_main_heading(browser, frontend_server):
+    for page in ["login.html", "register.html"]:
+        browser.get(f"{frontend_server}/{page}")
+
+        assert len(browser.find_elements(By.TAG_NAME, "h1")) == 1
+
+
+def test_auth_pages_fit_mobile_viewport(browser, frontend_server):
+    browser.set_window_size(375, 812)
+
+    for page in ["login.html", "register.html"]:
+        browser.get(f"{frontend_server}/{page}")
+
+        has_horizontal_overflow = browser.execute_script("""
+            return document.documentElement.scrollWidth >
+                   document.documentElement.clientWidth;
+        """)
+
+        assert has_horizontal_overflow is False, (
+            f"Horizontal overflow found on {page}"
+        )
