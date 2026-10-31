@@ -90,9 +90,11 @@ class FakeDB:
 
         if isinstance(instance, EventRegistration):
             self.registration = instance
+            self.registered_count += 1
 
             if self.state is not None:
                 self.state["registration"] = instance
+                self.state["registered_count"] = self.registered_count
 
         elif isinstance(instance, Notification):
             if self.state is not None:
@@ -635,3 +637,30 @@ def test_registration_rejected_for_cancelled_event(registration_api):
     assert "cancelled" in response.json()["detail"].lower()
     assert state["registration"] is None
     assert state["db"].committed is False
+
+# EV-119: Registration edge case tests
+
+def test_registration_allowed_when_exactly_one_slot_remains(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
+    state["event"].capacity = 1
+    state["registered_count"] = 0
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "Registered"
+    assert state["db"].registered_count == 1
+
+
+def test_registration_increases_registered_count(registration_api):
+    client, state = registration_api
+    state["user"] = make_user(3, "student")
+    state["registration"] = None
+    state["registered_count"] = 10
+
+    response = client.post("/events/10/registrations")
+
+    assert response.status_code == 201
+    assert state["db"].registered_count == 11
