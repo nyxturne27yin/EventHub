@@ -304,3 +304,25 @@ def test_organizer_cannot_list_users():
     finally:
         client.close()
         app.dependency_overrides.clear()
+
+
+def test_organizer_cannot_change_user_activation_status():
+    organizer = make_user(user_id=1, role_name="organizer")
+    target = make_user(user_id=2, role_name="student", active=True)
+    client, db = make_mutation_client(
+        [organizer, target],
+        role_name="organizer",
+    )
+
+    try:
+        response = client.patch(
+            "/admin/users/2",
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 403
+        assert target.is_active is True
+        assert db.commit_count == 0
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
