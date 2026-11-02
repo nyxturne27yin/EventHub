@@ -1,28 +1,22 @@
+
 import json
 import os
-import shutil
 import tempfile
 import threading
+from datetime import date, datetime, time, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
 
 import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-
-
-CHROMEDRIVER = (
-    r"L:\SeleniumCache\chromedriver\win64"
-    r"\156.0.8078.80\chromedriver.exe"
-)
-
-TEMP_DIR = r"L:\Temp\Selenium"
 
 
 class MockAPIHandler(BaseHTTPRequestHandler):
 
     def send_json(self, status_code, data):
         body = json.dumps(data).encode("utf-8")
+
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -33,7 +27,7 @@ class MockAPIHandler(BaseHTTPRequestHandler):
         )
         self.send_header(
             "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS"
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         self.end_headers()
         self.wfile.write(body)
@@ -47,26 +41,75 @@ class MockAPIHandler(BaseHTTPRequestHandler):
         )
         self.send_header(
             "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS"
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         self.end_headers()
 
+    def get_test_event(self, detailed=False):
+        event = {
+            "id": 1,
+            "title": "Selenium Test Event",
+            "description": "A test event for EventHub UI testing.",
+            "category": "Technology",
+            "event_date": (date.today() + timedelta(days=30)).isoformat(),
+            "start_time": "10:00:00",
+            "end_time": "12:00:00",
+            "mode": "Offline",
+            "venue": "UAP Campus",
+            "capacity": 100,
+            "registered_count": 10,
+            "status": "published",
+            "organization_name": "CSE Department",
+            "department": "Computer Science"
+        }
+
+        if detailed:
+            event["registration_deadline"] = (
+                datetime.combine(
+                    date.today() + timedelta(days=20),
+                    time.min
+                ).isoformat()
+            )
+
+        return event
+
     def do_GET(self):
-        if self.path == "/auth/me":
+        path = urlparse(self.path).path
+
+        if path == "/auth/me":
             self.send_json(200, {
                 "id": 1,
                 "name": "Selenium Test Student",
                 "email": "12345678@uap-bd.edu",
                 "role": "student"
             })
+
+        elif path == "/events/":
+            event = self.get_test_event()
+            search = parse_qs(
+                urlparse(self.path).query
+            ).get("search", [""])[0]
+
+            if search and search.lower() not in event["title"].lower():
+                self.send_json(200, [])
+            else:
+                self.send_json(200, [event])
+
+        elif path == "/events/1":
+            self.send_json(200, self.get_test_event(detailed=True))
+
+        elif path == "/registrations/me":
+            self.send_json(200, [])
+
         else:
             self.send_json(404, {"detail": "Not found"})
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         payload = json.loads(self.rfile.read(length) or b"{}")
+        path = urlparse(self.path).path
 
-        if self.path == "/auth/login":
+        if path == "/auth/login":
             valid_login = (
                 payload.get("email") == "12345678@uap-bd.edu"
                 and payload.get("password") == "StrongPass123!"
@@ -82,12 +125,21 @@ class MockAPIHandler(BaseHTTPRequestHandler):
                     "detail": "Invalid email or password"
                 })
 
-        elif self.path == "/auth/register":
+        elif path == "/auth/register":
             self.send_json(201, {
                 "id": 999,
                 "full_name": payload.get("full_name"),
                 "email": payload.get("email")
             })
+
+        elif path == "/events/1/registrations":
+            self.send_json(201, {
+                "id": 1001,
+                "event_id": 1,
+                "student_id": 1,
+                "status": "Registered"
+            })
+
         else:
             self.send_json(404, {"detail": "Not found"})
 
@@ -97,12 +149,16 @@ class MockAPIHandler(BaseHTTPRequestHandler):
 
 @pytest.fixture(scope="session")
 def local_servers():
-    # Reuse the existing frontend server on port 5500.
-    # Start only the mock API server on port 8000.
-    api_server = ThreadingHTTPServer(
-        ("127.0.0.1", 8000),
-        MockAPIHandler
-    )
+    try:
+        api_server = ThreadingHTTPServer(
+            ("127.0.0.1", 8000),
+            MockAPIHandler
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "Port 8000 is already in use. Stop the FastAPI backend "
+            "before running Selenium tests."
+        ) from exc
 
     api_thread = threading.Thread(
         target=api_server.serve_forever,
@@ -114,43 +170,36 @@ def local_servers():
 
     api_server.shutdown()
     api_server.server_close()
+    api_thread.join(timeout=5)
 
 
 @pytest.fixture
 def driver(local_servers):
-    os.environ["TEMP"] = TEMP_DIR
-    os.environ["TMP"] = TEMP_DIR
-
-    profile_dir = tempfile.mkdtemp(
-        prefix="eventhub-chrome-",
-        dir=TEMP_DIR
+    chrome_path = (
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe"
     )
 
-    cache_dir = os.path.join(profile_dir, "cache")
-    os.makedirs(cache_dir, exist_ok=True)
+    if not os.path.exists(chrome_path):
+        raise RuntimeError("Google Chrome was not found.")
 
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-first-run")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1365,900")
-    options.add_argument(f"--user-data-dir={profile_dir}")
-    options.add_argument(f"--disk-cache-dir={cache_dir}")
-    options.add_argument("--disk-cache-size=104857600")
+    with tempfile.TemporaryDirectory(
+        prefix="eventhub-chrome-"
+    ) as profile_dir:
 
-    service = Service(executable_path=CHROMEDRIVER)
-    browser = None
+        options = Options()
+        options.binary_location = chrome_path
 
-    try:
-        browser = webdriver.Chrome(
-            service=service,
-            options=options
-        )
-        yield browser
-    finally:
-        if browser is not None:
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-first-run")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--window-size=1365,900")
+        options.add_argument(f"--user-data-dir={profile_dir}")
+
+        browser = webdriver.Chrome(options=options)
+
+        try:
+            yield browser
+        finally:
             browser.quit()
-
-        shutil.rmtree(profile_dir, ignore_errors=True)
