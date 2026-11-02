@@ -32,6 +32,7 @@ class FakeDB:
     async def refresh(self, user):
         pass
 
+
 def make_user():
     return User(
         id=1,
@@ -46,18 +47,20 @@ def make_user():
 @pytest.fixture
 def client():
     user = make_user()
+    original_overrides = app.dependency_overrides.copy()
 
     async def override_get_db():
         yield FakeDB(user)
 
     app.dependency_overrides[get_db] = override_get_db
-
     test_client = TestClient(app)
 
-    yield test_client
-
-    test_client.close()
-    app.dependency_overrides.clear()
+    try:
+        yield test_client
+    finally:
+        test_client.close()
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(original_overrides)
 
 
 def test_valid_login_returns_token(client):
@@ -91,26 +94,29 @@ def test_wrong_password_is_rejected(client):
 
 
 def test_unknown_user_is_rejected():
+    original_overrides = app.dependency_overrides.copy()
+
     async def override_get_db():
         yield FakeDB(None)
 
     app.dependency_overrides[get_db] = override_get_db
-
     test_client = TestClient(app)
 
-    response = test_client.post(
-        "/auth/login",
-        json={
-            "email": "87654321@uap-bd.edu",
-            "password": "StrongPass123!",
-        },
-    )
+    try:
+        response = test_client.post(
+            "/auth/login",
+            json={
+                "email": "87654321@uap-bd.edu",
+                "password": "StrongPass123!",
+            },
+        )
 
-    test_client.close()
-    app.dependency_overrides.clear()
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid email or password"
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid email or password"
+    finally:
+        test_client.close()
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(original_overrides)
 
 
 def test_protected_route_without_token(client):
@@ -170,6 +176,7 @@ def test_malformed_token_subject_is_rejected(client):
 
 
 def test_inactive_user_cannot_login():
+    original_overrides = app.dependency_overrides.copy()
     user = make_user()
     user.is_active = False
 
@@ -193,9 +200,11 @@ def test_inactive_user_cannot_login():
     finally:
         test_client.close()
         app.dependency_overrides.clear()
+        app.dependency_overrides.update(original_overrides)
 
 
 def test_inactive_user_cannot_use_existing_token():
+    original_overrides = app.dependency_overrides.copy()
     user = make_user()
     user.is_active = False
 
@@ -217,3 +226,39 @@ def test_inactive_user_cannot_use_existing_token():
     finally:
         test_client.close()
         app.dependency_overrides.clear()
+        app.dependency_overrides.update(original_overrides)
+
+
+def test_token_signed_with_wrong_secret_is_rejected(client):
+    forged_token = jwt.encode(
+        {
+            "sub": "1",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        "wrong-test-secret-for-security-testing",
+        algorithm=JWT_ALGORITHM,
+    )
+
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {forged_token}"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_token_without_subject_is_rejected(client):
+    token = jwt.encode(
+        {
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        JWT_SECRET_KEY,
+        algorithm=JWT_ALGORITHM,
+    )
+
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 401
