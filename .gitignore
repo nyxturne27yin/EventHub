@@ -25,3 +25,6 @@ Thumbs.db
 # Python cache and compiled files
 __pycache__/
 *.pyc
+
+# Selenium notification test evidence
+selenium_tests/evidence/
