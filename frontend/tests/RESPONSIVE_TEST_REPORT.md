@@ -63,3 +63,20 @@ pytest frontend/tests/test_event_ui.py frontend/tests/responsive/test_responsive
 
 ## Conclusion
 The executed responsive test suite passed across 12 pages and 7 viewport sizes. Screenshot evidence was captured for all tested page and viewport combinations. The limitations above remain outside the verified scope.
+
+## Additional Interaction Smoke Tests
+
+Final combined test run:
+
+- Existing and responsive tests: 301 passed
+- Skipped: 19
+- Failed: 0
+- Duration: 141.20 seconds
+
+Additional checks:
+- Editable visible form fields accept input.
+- Page scrolling works.
+- Available Bootstrap dropdown and modal controls are checked.
+- Tests are skipped when the corresponding controls are unavailable.
+
+Skipped tests are not counted as passed. Real authentication and backend form submission remain unverified.
