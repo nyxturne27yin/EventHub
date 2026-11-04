@@ -7,7 +7,7 @@ const confirmPasswordInput = document.getElementById("confirmPassword");
 const messageBox = document.getElementById("message");
 const submitButton = document.getElementById("submitButton");
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = window.EVENTHUB_API_BASE_URL;
 const resetToken = new URLSearchParams(window.location.search).get("token");
 
 function showMessage(message, type) {
@@ -77,6 +77,7 @@ form.addEventListener("submit", async (event) => {
 
         form.reset();
         submitButton.disabled = true;
+        submitButton.textContent = "Password reset";
     } catch (error) {
         showMessage(
             error.message ||

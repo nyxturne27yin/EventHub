@@ -42,6 +42,7 @@ async def get_my_registrations(
             "end_time": event.end_time,
             "mode": event.mode,
             "venue": event.venue,
+            "cover_image_url": event.cover_image_url,
             "meeting_link": event.meeting_link,
             "status": event.status,
         }
@@ -95,6 +96,7 @@ async def get_my_upcoming_registrations(
             "end_time": event.end_time,
             "mode": event.mode,
             "venue": event.venue,
+            "cover_image_url": event.cover_image_url,
             "meeting_link": event.meeting_link,
             "status": event.status,
         }

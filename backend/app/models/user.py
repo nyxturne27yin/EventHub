@@ -54,6 +54,7 @@ class User(Base):
 
     password_reset_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     password_reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    password_reset_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     role = relationship(
         "Role",

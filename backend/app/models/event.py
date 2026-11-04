@@ -22,6 +22,7 @@ class Event(Base):
     mode: Mapped[str] = mapped_column(String(20), nullable=False)
     venue: Mapped[str | None] = mapped_column(String(255), nullable=True)
     meeting_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    cover_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # None means unlimited capacity.
     capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)

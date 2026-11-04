@@ -1,5 +1,5 @@
-
-const PROFILE_API_URL = "http://127.0.0.1:8000";
+﻿
+const PROFILE_API_URL = window.EVENTHUB_API_BASE_URL;
 
 let organizerProfile = null;
 let studentCertificates = [];
@@ -77,7 +77,7 @@ async function loadProfile() {
             await loadOrganizerProfile(token);
 
             if (user.id != null) {
-                await loadOrganizerEvents(user.id, token);
+                await loadOrganizerEvents(user.id, token, true);
             }
         }
 
@@ -128,7 +128,7 @@ function showOrganizerProfile(profile) {
         profile.contact_phone || "Not provided";
 }
 
-async function loadOrganizerEvents(organizerId, token) {
+async function loadOrganizerEvents(organizerId, token, isOwnProfile = false) {
     const section = document.getElementById("organizerEventsSection");
     const loading = document.getElementById("organizerEventsLoading");
     const error = document.getElementById("organizerEventsError");
@@ -164,7 +164,7 @@ async function loadOrganizerEvents(organizerId, token) {
             );
         }
 
-        renderOrganizerEvents(data.events);
+        renderOrganizerEvents(data.events, isOwnProfile);
     } catch (err) {
         error.textContent =
             err.message || "Unable to load organizer events.";
@@ -174,7 +174,7 @@ async function loadOrganizerEvents(organizerId, token) {
     }
 }
 
-function renderOrganizerEvents(events) {
+function renderOrganizerEvents(events, isOwnProfile = false) {
     const empty = document.getElementById("organizerEventsEmpty");
 
     const groups = {
@@ -242,7 +242,7 @@ function renderOrganizerEvents(events) {
 
     Object.values(groups).forEach((group) => {
         group.events.forEach((event) => {
-            group.list.appendChild(createOrganizerEventCard(event));
+            group.list.appendChild(createOrganizerEventCard(event, isOwnProfile));
             displayedCount++;
         });
 
@@ -255,12 +255,22 @@ function renderOrganizerEvents(events) {
     empty.classList.toggle("d-none", displayedCount > 0);
 }
 
-function createOrganizerEventCard(event) {
+function createOrganizerEventCard(event, isOwnProfile = false) {
     const column = document.createElement("div");
     column.className = "col-12 col-md-6";
 
     const card = document.createElement("article");
     card.className = "card h-100 shadow-sm";
+
+    if (event.cover_image_url) {
+        const cover = document.createElement("img");
+        cover.className = "event-card-cover";
+        cover.src = `${PROFILE_API_URL}${event.cover_image_url}`;
+        cover.alt = `${event.title || "Event"} cover`;
+        cover.loading = "lazy";
+        cover.onerror = () => cover.remove();
+        card.append(cover);
+    }
 
     const body = document.createElement("div");
     body.className = "card-body";
@@ -297,7 +307,18 @@ function createOrganizerEventCard(event) {
         `event-details.html?id=${encodeURIComponent(event.id)}`;
     detailsLink.textContent = "View Event Details";
 
-    body.append(title, date, time, mode, venue, status, detailsLink);
+    body.append(title, date, time, mode, venue, status);
+    if (["published", "cancelled", "completed"].includes(String(event.status || "").toLowerCase())) {
+        body.append(detailsLink);
+    }
+
+    if (isOwnProfile && ["draft", "published"].includes(String(event.status || "").toLowerCase())) {
+        const editLink = document.createElement("a");
+        editLink.className = "btn btn-primary btn-sm mt-2";
+        editLink.href = `create-event.html?edit=${encodeURIComponent(event.id)}`;
+        editLink.textContent = "Edit event";
+        body.append(editLink);
+    }
     card.appendChild(body);
     column.appendChild(card);
 

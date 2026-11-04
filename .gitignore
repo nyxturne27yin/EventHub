@@ -28,3 +28,15 @@ __pycache__/
 
 # Selenium notification test evidence
 selenium_tests/evidence/
+
+# Local database backups
+*.dump
+
+# Runtime event image uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example

@@ -13,7 +13,7 @@ document.querySelectorAll("[data-toggle-password]").forEach((button) => {
     });
 });
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = window.EVENTHUB_API_BASE_URL;
 
 const form = document.getElementById("registrationForm");
 const errorBox = document.getElementById("registrationError");
@@ -40,7 +40,7 @@ if (form && errorBox && successBox) {
             errorBox.style.display = "block";
         }
 
-        if (!fullName || !/^[0-9]{8,}@uap-bd\.edu$/i.test(email)) {
+        if (!fullName || !/^[A-Za-z0-9._%+-]+@uap-bd\.edu$/i.test(email)) {
             showError("Enter your name and a valid UAP email.");
             return;
         }

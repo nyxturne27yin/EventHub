@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+﻿from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy import select
@@ -116,13 +116,13 @@ async def get_organizer_profile(
             detail="Organizer profile not found",
         )
 
-    events_result = await db.execute(
-        select(Event)
-        .where(
-            Event.organizer_id == user_id,
-            Event.status.in_(("published", "cancelled", "completed")),
+    event_statement = select(Event).where(Event.organizer_id == user_id)
+    if current_user.id != user_id:
+        event_statement = event_statement.where(
+            Event.status.in_(("published", "cancelled", "completed"))
         )
-        .order_by(Event.event_date, Event.start_time)
+    events_result = await db.execute(
+        event_statement.order_by(Event.event_date, Event.start_time)
     )
     events = events_result.scalars().all()
 
@@ -138,6 +138,7 @@ async def get_organizer_profile(
             "end_time": event.end_time,
             "mode": event.mode,
             "venue": event.venue,
+            "cover_image_url": getattr(event, "cover_image_url", None),
             "capacity": event.capacity,
             "registration_deadline": event.registration_deadline,
             "status": event.status,

@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 
 from fastapi.testclient import TestClient
@@ -89,7 +89,7 @@ def test_forgot_password_creates_hashed_token_and_schedules_email(monkeypatch):
         assert response.status_code == 200
         assert user.password_reset_token_hash
         assert len(user.password_reset_token_hash) == 64
-        assert user.password_reset_expires_at > datetime.utcnow()
+        assert user.password_reset_expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
         assert len(sent) == 1
         assert sent[0][0] == user.email
         assert hashlib.sha256(sent[0][1].encode()).hexdigest() == (
@@ -107,7 +107,10 @@ def test_reset_password_updates_password_and_consumes_token():
     user.password_reset_token_hash = hashlib.sha256(
         raw_token.encode()
     ).hexdigest()
-    user.password_reset_expires_at = datetime.utcnow() + timedelta(minutes=30)
+    user.password_reset_expires_at = (
+    datetime.now(timezone.utc).replace(tzinfo=None)
+    + timedelta(minutes=30)
+)
 
     client = make_client(user)
 
@@ -179,3 +182,23 @@ def test_reset_password_rejects_expired_token():
         client.close()
         app.dependency_overrides.clear()
 
+
+
+def test_forgot_password_applies_account_cooldown(monkeypatch):
+    user = make_user()
+    sent = []
+    monkeypatch.setattr(
+        auth_router,
+        "send_password_reset_email",
+        lambda email, token: sent.append((email, token)),
+    )
+    client = make_client(user)
+
+    try:
+        first = client.post("/auth/forgot-password", json={"email": user.email})
+        second = client.post("/auth/forgot-password", json={"email": user.email})
+        assert first.status_code == second.status_code == 200
+        assert len(sent) == 1
+    finally:
+        client.close()
+        app.dependency_overrides.clear()

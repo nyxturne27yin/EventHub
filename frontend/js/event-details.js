@@ -1,5 +1,5 @@
 
-const EVENTS_API_URL = "http://127.0.0.1:8000/events/";
+const EVENTS_API_URL = `${window.EVENTHUB_API_BASE_URL}/events/`;
 
 const params = new URLSearchParams(window.location.search);
 const rawId = params.get("id");
@@ -128,7 +128,7 @@ async function loadMyRegistrationStatus() {
     if (!token || !eventId) return;
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/registrations/me", {
+        const response = await fetch(`${window.EVENTHUB_API_BASE_URL}/registrations/me`, {
             headers: {
                 Authorization: "Bearer " + token,
                 Accept: "application/json"
@@ -211,6 +211,15 @@ async function loadDetails() {
         }
 
         currentEventData = data;
+        const coverImage = document.getElementById("detailCoverImage");
+        if (coverImage && data.cover_image_url) {
+            coverImage.src = `${window.EVENTHUB_API_BASE_URL}${data.cover_image_url}`;
+            coverImage.alt = `${data.title || "Event"} cover`;
+            coverImage.classList.remove("d-none");
+            coverImage.onerror = () => coverImage.classList.add("d-none");
+        } else if (coverImage) {
+            coverImage.classList.add("d-none");
+        }
 
         setText("detailTitle", data.title || "Untitled Event");
         setText("detailCategory", data.category || "General");

@@ -1,4 +1,4 @@
-
+﻿
 from datetime import date, datetime, time
 from typing import Literal
 from urllib.parse import urlparse
@@ -179,6 +179,8 @@ class EventSearchItem(BaseModel):
     end_time: time
     mode: str
     venue: str | None = None
+    cover_image_url: str | None = None
+    registration_deadline: datetime | None = None
     capacity: int | None = None
     registered_count: int = 0
     status: str
@@ -187,6 +189,6 @@ class EventSearchItem(BaseModel):
 
 
 class EventDetailResponse(EventSearchItem):
-    """Detailed event response."""
+    """Public detailed event response."""
 
     registration_deadline: datetime
