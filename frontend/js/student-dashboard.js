@@ -1,7 +1,7 @@
 ﻿
 "use strict";
 
-const DASHBOARD_API_URL = "http://127.0.0.1:8000";
+const DASHBOARD_API_URL = window.EVENTHUB_API_BASE_URL;
 
 document.addEventListener("DOMContentLoaded", loadStudentDashboard);
 
@@ -175,6 +175,16 @@ function createRegistrationCard(registration) {
 
     const card = document.createElement("article");
     card.className = "card h-100 shadow-sm";
+
+    if (registration.cover_image_url) {
+        const cover = document.createElement("img");
+        cover.className = "event-card-cover";
+        cover.src = `${DASHBOARD_API_URL}${registration.cover_image_url}`;
+        cover.alt = `${registration.title || "Event"} cover`;
+        cover.loading = "lazy";
+        cover.onerror = () => cover.remove();
+        card.append(cover);
+    }
 
     const body = document.createElement("div");
     body.className = "card-body d-flex flex-column";

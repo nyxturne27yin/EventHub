@@ -186,6 +186,7 @@ async def list_all_events(db: AsyncSession = Depends(get_db)):
         {
             "id": event.id,
             "title": event.title,
+            "cover_image_url": event.cover_image_url,
             "event_date": event.event_date,
             "status": event.status,
             "organizer_id": event.organizer_id,

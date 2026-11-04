@@ -1,4 +1,4 @@
-const EVENTS_API_URL = "http://127.0.0.1:8000/events/";
+const EVENTS_API_URL = `${window.EVENTHUB_API_BASE_URL}/events/`;
 
 const searchForm = document.getElementById("eventSearchForm");
 const searchInput = document.getElementById("eventSearchInput");
@@ -56,6 +56,16 @@ function showEvent(event) {
 
     const card = document.createElement("article");
     card.className = "card event-card h-100 shadow-sm";
+
+    if (event.cover_image_url) {
+        const cover = document.createElement("img");
+        cover.className = "event-card-cover";
+        cover.src = `${EVENTS_API_URL.replace(/\/events\/$/, "")}${event.cover_image_url}`;
+        cover.alt = `${event.title || "Event"} cover`;
+        cover.loading = "lazy";
+        cover.onerror = () => cover.remove();
+        card.append(cover);
+    }
 
     const body = document.createElement("div");
     body.className = "card-body d-flex flex-column";

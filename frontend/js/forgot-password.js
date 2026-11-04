@@ -6,7 +6,7 @@ const emailInput = document.getElementById("email");
 const messageBox = document.getElementById("message");
 const submitButton = document.getElementById("submitButton");
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = window.EVENTHUB_API_BASE_URL;
 
 function showMessage(message, type) {
     messageBox.textContent = message;
@@ -48,7 +48,7 @@ form.addEventListener("submit", async (event) => {
 
         showMessage(
             data.message ||
-                "If an eligible account exists, password reset instructions will be sent to its email address.",
+                "If an eligible account exists, reset instructions will be sent when email delivery is configured.",
             "success"
         );
 

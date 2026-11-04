@@ -6,6 +6,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     String,
     UniqueConstraint,
 )
@@ -19,6 +20,10 @@ class Certificate(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "certificate_id",
+            name="certificates_certificate_id_key",
+        ),
+        UniqueConstraint(
             "student_id",
             "event_id",
             name="uq_certificate_student_event",
@@ -27,16 +32,15 @@ class Certificate(Base):
             "category IN ('Academic', 'Research')",
             name="ck_certificates_category",
         ),
+        Index("ix_certificates_certificate_id", "certificate_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
     certificate_id: Mapped[str] = mapped_column(
         String(36),
-        unique=True,
         nullable=False,
         default=lambda: str(uuid.uuid4()),
-        index=True,
     )
 
     student_id: Mapped[int] = mapped_column(

@@ -1,5 +1,5 @@
 
-const NOTIFICATION_API_URL = "http://127.0.0.1:8000/notifications";
+const NOTIFICATION_API_URL = `${window.EVENTHUB_API_BASE_URL}/notifications`;
 
 const notificationLoading = document.getElementById("notificationLoading");
 const notificationError = document.getElementById("notificationError");

@@ -1,10 +1,12 @@
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from collections import defaultdict, deque
+from datetime import datetime, timedelta, timezone
+from time import monotonic
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +31,21 @@ from app.models.role import Role
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+_PASSWORD_RESET_IP_REQUESTS: dict[str, deque[float]] = defaultdict(deque)
+_PASSWORD_RESET_IP_WINDOW_SECONDS = 15 * 60
+_PASSWORD_RESET_IP_MAX_REQUESTS = 10
+
+
+def _password_reset_ip_is_rate_limited(client_ip: str) -> bool:
+    """Small process-local abuse guard; use a shared limiter at deployment scale."""
+    now = monotonic()
+    requests = _PASSWORD_RESET_IP_REQUESTS[client_ip]
+    while requests and requests[0] <= now - _PASSWORD_RESET_IP_WINDOW_SECONDS:
+        requests.popleft()
+    if len(requests) >= _PASSWORD_RESET_IP_MAX_REQUESTS:
+        return True
+    requests.append(now)
+    return False
 
 
 @router.post(
@@ -141,33 +158,44 @@ async def login(
 
 @router.post("/forgot-password")
 async def forgot_password(
-    request: PasswordResetRequest,
+    payload: PasswordResetRequest,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     # Always return the same response to prevent account enumeration.
     generic_response = {
         "message": (
-            "If an eligible account exists, password reset instructions "
-            "will be sent to its email address."
+            "If an eligible account exists, reset instructions will be sent "
+            "when email delivery is configured."
         )
     }
 
+    client_ip = request.client.host if request.client else "unknown"
+    if _password_reset_ip_is_rate_limited(client_ip):
+        return generic_response
+
     result = await db.execute(
-        select(User).where(User.email == str(request.email))
+        select(User)
+        .where(User.email == str(payload.email))
+        .with_for_update()
     )
     user = result.scalar_one_or_none()
 
     if user is None or not user.is_active:
         return generic_response
 
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    last_request = getattr(user, "password_reset_requested_at", None)
+    if last_request is not None and last_request > now - timedelta(seconds=60):
+        return generic_response
+
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
     user.password_reset_token_hash = token_hash
-    user.password_reset_expires_at = datetime.utcnow() + timedelta(
-        minutes=30
-    )
+    user.password_reset_expires_at = now + timedelta(minutes=30)
+    user.password_reset_requested_at = now
 
     await db.commit()
 
@@ -199,7 +227,7 @@ async def reset_password(
     if (
         user is None
         or user.password_reset_expires_at is None
-        or user.password_reset_expires_at <= datetime.utcnow()
+        or user.password_reset_expires_at <= datetime.now(timezone.utc).replace(tzinfo=None)
         or not user.is_active
     ):
         raise HTTPException(

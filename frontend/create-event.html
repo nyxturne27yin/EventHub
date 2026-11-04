@@ -50,6 +50,33 @@
                         <input id="category" name="category" class="form-control" maxlength="100" placeholder="e.g. Workshop, Seminar, Competition" required>
                     </div>
 
+                    <section class="event-cover-uploader mb-4" aria-labelledby="coverImageHeading">
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                            <div>
+                                <h2 id="coverImageHeading" class="h6 mb-1">Event cover image <span class="text-secondary fw-normal">(optional)</span></h2>
+                                <p class="small text-secondary mb-0">Add a JPG, PNG, or WebP image up to 5 MB.</p>
+                            </div>
+                            <span class="badge rounded-pill text-bg-light">Recommended: 16:9</span>
+                        </div>
+                        <label id="coverDropZone" class="cover-drop-zone" for="coverImage">
+                            <span class="cover-upload-icon" aria-hidden="true">&#8593;</span>
+                            <strong>Drop an image here or browse files</strong>
+                            <span class="small text-secondary">Your image will appear on event cards and details.</span>
+                            <input id="coverImage" type="file" class="form-control mt-3" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" aria-describedby="coverImageHelp">
+                        </label>
+                        <div id="coverImagePreviewWrap" class="cover-preview-wrap d-none mt-3">
+                            <img id="coverImagePreview" class="cover-image-preview" alt="Selected event cover preview">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+                                <span id="coverImageName" class="small text-secondary"></span>
+                                <div class="d-flex gap-2">
+                                    <label class="btn btn-sm btn-outline-primary mb-0" for="coverImage">Replace image</label>
+                                    <button id="removeCoverImage" class="btn btn-sm btn-outline-danger" type="button">Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="coverImageHelp" class="form-text">You can create an event without an image and add one later.</div>
+                    </section>
+
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label for="event_date" class="form-label">Event Date</label>
@@ -75,7 +102,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="capacity" class="form-label">Participant Capacity</label>
-                            <input type="number" id="capacity" name="capacity" class="form-control" min="1" step="1" required>
+                            <input type="number" id="capacity" name="capacity" class="form-control" min="1" step="1" placeholder="Leave blank for unlimited capacity">
                         </div>
                     </div>
 
@@ -105,6 +132,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/create-event.js"></script>
+    <script src="js/config.js"></script>
+<script src="js/create-event.js"></script>
 </body>
 </html>

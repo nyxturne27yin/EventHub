@@ -1,5 +1,5 @@
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = window.EVENTHUB_API_BASE_URL;
 
 const token = sessionStorage.getItem("access_token");
 
@@ -205,7 +205,18 @@ async function loadEvents() {
     events.forEach((event) => {
         const row = document.createElement("tr");
 
-        row.appendChild(createCell(event.title));
+        const titleCell = createCell("");
+        if (event.cover_image_url) {
+            const cover = document.createElement("img");
+            cover.className = "admin-event-thumbnail me-2";
+            cover.src = `${API_BASE}${event.cover_image_url}`;
+            cover.alt = "";
+            cover.loading = "lazy";
+            cover.onerror = () => cover.remove();
+            titleCell.appendChild(cover);
+        }
+        titleCell.appendChild(document.createTextNode(event.title || "Untitled event"));
+        row.appendChild(titleCell);
         row.appendChild(createCell(formatDate(event.event_date)));
         row.appendChild(createCell(event.organizer_name));
         row.appendChild(createCell(event.status));

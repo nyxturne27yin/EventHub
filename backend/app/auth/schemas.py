@@ -36,11 +36,10 @@ class RegisterRequest(BaseModel):
         if len(value) > 255:
             raise ValueError("Email must not exceed 255 characters")
 
-        if not re.fullmatch(r"[0-9]{8,}@uap-bd\.edu", value):
-            raise ValueError(
-                "Email must contain a valid registration number "
-                "followed by @uap-bd.edu"
-            )
+        if not re.fullmatch(r"[A-Za-z0-9._%+-]+@uap-bd\.edu", value):
+         raise ValueError(
+        "Email must use a valid username followed by @uap-bd.edu"
+    )
 
         return value
 
@@ -118,7 +117,7 @@ class ProfileUpdateRequest(BaseModel):
         if len(value) > 255:
             raise ValueError("Email must not exceed 255 characters")
 
-        if not re.fullmatch(r"[0-9]{8,}@uap-bd\.edu", value):
+        if not re.fullmatch(r"[A-Za-z0-9._%+-]+@uap-bd\.edu", value):
             raise ValueError(
                 "Email must contain a valid registration number "
                 "followed by @uap-bd.edu"

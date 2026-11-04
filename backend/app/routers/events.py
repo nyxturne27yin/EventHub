@@ -1,10 +1,20 @@
-
+﻿
 from datetime import date, datetime, timezone
+import logging
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import (
+    APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status,
+)
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.image_validation import (
+    ALLOWED_IMAGE_FORMATS,
+    MAX_COVER_IMAGE_BYTES,
+    inspect_cover_image,
+)
+from app.core.storage import EVENT_COVER_IMAGE_DIR, resolve_event_cover_path
 from app.database.database import get_db
 from app.dependencies.auth import require_role
 from app.models.event import Event
@@ -20,11 +30,22 @@ from app.services.event_lifecycle import (
 )
 from app.schemas.event import (
     EventCreateRequest,
+    EventDetailResponse,
     EventSearchItem,
     EventUpdateRequest,
 )
 
 router = APIRouter(prefix="/events", tags=["Events"])
+logger = logging.getLogger(__name__)
+
+
+def _ensure_event_image_editable(event: Event) -> None:
+    current_status = (event.status or "").strip().lower()
+    if current_status in {"pending_approval", "cancelled", "completed"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This event cannot be modified in its current status",
+        )
 
 
 async def event_search_item_with_organizer(
@@ -96,6 +117,7 @@ async def create_event(
             "mode": event.mode,
             "venue": event.venue,
             "meeting_link": event.meeting_link,
+            "cover_image_url": getattr(event, "cover_image_url", None),
             "capacity": event.capacity,
             "registration_deadline": event.registration_deadline,
             "status": event.status,
@@ -157,7 +179,39 @@ async def list_events(
     return event_items
 
 
-@router.get("/{event_id}", response_model=EventSearchItem)
+@router.get("/{event_id}/manage")
+async def get_event_for_organizer_edit(
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    """Return editable event fields only to the owning organizer."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.organizer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own events")
+    _ensure_event_image_editable(event)
+    return {
+        "id": event.id,
+        "title": event.title,
+        "description": event.description,
+        "category": event.category,
+        "event_date": event.event_date,
+        "start_time": event.start_time,
+        "end_time": event.end_time,
+        "mode": event.mode,
+        "venue": event.venue,
+        "meeting_link": event.meeting_link,
+        "capacity": event.capacity,
+        "registration_deadline": event.registration_deadline,
+        "status": event.status,
+        "cover_image_url": getattr(event, "cover_image_url", None),
+    }
+
+
+@router.get("/{event_id}", response_model=EventDetailResponse)
 async def get_event_details(
     event_id: int = Path(gt=0),
     db: AsyncSession = Depends(get_db),
@@ -289,6 +343,7 @@ async def publish_event(
             "mode": event.mode,
             "venue": event.venue,
             "meeting_link": event.meeting_link,
+            "cover_image_url": getattr(event, "cover_image_url", None),
             "capacity": event.capacity,
             "registration_deadline": event.registration_deadline,
             "status": event.status,
@@ -452,6 +507,7 @@ async def update_event(
             "mode": event.mode,
             "venue": event.venue,
             "meeting_link": event.meeting_link,
+            "cover_image_url": getattr(event, "cover_image_url", None),
             "capacity": event.capacity,
             "registration_deadline": event.registration_deadline,
             "status": event.status,
@@ -548,3 +604,76 @@ async def cancel_event(
         "event_id": event.id,
         "status": event.status,
     }
+
+
+@router.post("/{event_id}/cover-image")
+async def upload_event_cover_image(
+    event_id: int = Path(gt=0),
+    image: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    """Upload or replace an event cover image for its owning organizer."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.organizer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only modify your own events")
+    _ensure_event_image_editable(event)
+
+    content = await image.read(MAX_COVER_IMAGE_BYTES + 1)
+    await image.close()
+    try:
+        image_format, _, _ = inspect_cover_image(content)
+    except ValueError as validation_error:
+        status_code = 413 if len(content) > MAX_COVER_IMAGE_BYTES else 400
+        raise HTTPException(status_code=status_code, detail=str(validation_error))
+
+    filename = f"{uuid.uuid4().hex}{ALLOWED_IMAGE_FORMATS[image_format]}"
+    destination = EVENT_COVER_IMAGE_DIR / filename
+    try:
+        destination.write_bytes(content)
+        previous_path = resolve_event_cover_path(event.cover_image_url)
+        event.cover_image_url = f"/uploads/event-covers/{filename}"
+        event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        await db.commit()
+    except Exception:
+        destination.unlink(missing_ok=True)
+        await db.rollback()
+        logger.exception("Could not save event cover image")
+        raise HTTPException(status_code=500, detail="Could not save the event cover image")
+
+    if previous_path and previous_path != destination:
+        try:
+            previous_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove replaced event cover image: %s", previous_path)
+    return {"message": "Event cover image uploaded successfully", "cover_image_url": event.cover_image_url}
+
+
+@router.delete("/{event_id}/cover-image")
+async def remove_event_cover_image(
+    event_id: int = Path(gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    """Remove the owning organizer's current event cover image."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.organizer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only modify your own events")
+    _ensure_event_image_editable(event)
+
+    previous_path = resolve_event_cover_path(event.cover_image_url)
+    event.cover_image_url = None
+    event.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    await db.commit()
+    if previous_path:
+        try:
+            previous_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove event cover image: %s", previous_path)
+    return {"message": "Event cover image removed successfully"}
