@@ -40,7 +40,7 @@ if (form && errorBox && successBox) {
             errorBox.style.display = "block";
         }
 
-        if (!fullName || !/^[A-Za-z0-9._%+-]+@uap-bd\.edu$/i.test(email)) {
+        if (!fullName || !/^[A-Za-z0-9._%+&-]+@uap-bd\.edu$/i.test(email)) {
             showError("Enter your name and a valid UAP email.");
             return;
         }

@@ -6,7 +6,14 @@ from datetime import datetime, timedelta, timezone
 from time import monotonic
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    status,
+)
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +38,7 @@ from app.models.role import Role
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
 _PASSWORD_RESET_IP_REQUESTS: dict[str, deque[float]] = defaultdict(deque)
 _PASSWORD_RESET_IP_WINDOW_SECONDS = 15 * 60
 _PASSWORD_RESET_IP_MAX_REQUESTS = 10
@@ -40,10 +48,13 @@ def _password_reset_ip_is_rate_limited(client_ip: str) -> bool:
     """Small process-local abuse guard; use a shared limiter at deployment scale."""
     now = monotonic()
     requests = _PASSWORD_RESET_IP_REQUESTS[client_ip]
+
     while requests and requests[0] <= now - _PASSWORD_RESET_IP_WINDOW_SECONDS:
         requests.popleft()
+
     if len(requests) >= _PASSWORD_RESET_IP_MAX_REQUESTS:
         return True
+
     requests.append(now)
     return False
 
@@ -82,23 +93,30 @@ async def swagger_login(
     }
 
 
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(
     request: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    # 1. Check whether the email is already registered.
     result = await db.execute(
         select(User).where(User.email == request.email)
     )
-    if result.scalar_one_or_none():
+
+    existing_user = result.scalar_one_or_none()
+
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
 
+    # 2. Retrieve the Student role.
     role_result = await db.execute(
         select(Role).where(Role.name == "student")
     )
+
     student_role = role_result.scalar_one_or_none()
 
     if student_role is None:
@@ -107,6 +125,7 @@ async def register(
             detail="Student role is not configured",
         )
 
+    # 3. Create the student account.
     user = User(
         name=request.full_name,
         email=request.email,
@@ -115,14 +134,17 @@ async def register(
         is_active=True,
     )
 
+    # 4. Save the account.
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
+    # 5. Return account information.
     return {
         "id": user.id,
         "full_name": user.name,
         "email": user.email,
+        "role": student_role.name,
     }
 
 
@@ -163,7 +185,6 @@ async def forgot_password(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    # Always return the same response to prevent account enumeration.
     generic_response = {
         "message": (
             "If an eligible account exists, reset instructions will be sent "
@@ -172,6 +193,7 @@ async def forgot_password(
     }
 
     client_ip = request.client.host if request.client else "unknown"
+
     if _password_reset_ip_is_rate_limited(client_ip):
         return generic_response
 
@@ -187,6 +209,7 @@ async def forgot_password(
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     last_request = getattr(user, "password_reset_requested_at", None)
+
     if last_request is not None and last_request > now - timedelta(seconds=60):
         return generic_response
 
@@ -227,7 +250,8 @@ async def reset_password(
     if (
         user is None
         or user.password_reset_expires_at is None
-        or user.password_reset_expires_at <= datetime.now(timezone.utc).replace(tzinfo=None)
+        or user.password_reset_expires_at
+        <= datetime.now(timezone.utc).replace(tzinfo=None)
         or not user.is_active
     ):
         raise HTTPException(
@@ -268,6 +292,7 @@ async def update_me(
             User.id != current_user.id,
         )
     )
+
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

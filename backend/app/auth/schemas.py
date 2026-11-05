@@ -1,3 +1,4 @@
+
 import re
 
 from pydantic import (
@@ -36,10 +37,10 @@ class RegisterRequest(BaseModel):
         if len(value) > 255:
             raise ValueError("Email must not exceed 255 characters")
 
-        if not re.fullmatch(r"[A-Za-z0-9._%+-]+@uap-bd\.edu", value):
-         raise ValueError(
-        "Email must use a valid username followed by @uap-bd.edu"
-    )
+        if not re.fullmatch(r"[A-Za-z0-9._%+&-]+@uap-bd\.edu", value):
+            raise ValueError(
+                "Email must use a valid username followed by @uap-bd.edu"
+            )
 
         return value
 
@@ -117,13 +118,15 @@ class ProfileUpdateRequest(BaseModel):
         if len(value) > 255:
             raise ValueError("Email must not exceed 255 characters")
 
-        if not re.fullmatch(r"[A-Za-z0-9._%+-]+@uap-bd\.edu", value):
+        if not re.fullmatch(r"[A-Za-z0-9._%+&-]+@uap-bd\.edu", value):
             raise ValueError(
                 "Email must contain a valid registration number "
                 "followed by @uap-bd.edu"
             )
 
         return value
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -136,8 +139,10 @@ class PasswordResetConfirmRequest(BaseModel):
     @classmethod
     def validate_token(cls, value):
         value = value.strip()
+
         if not value:
             raise ValueError("Reset token is required")
+
         return value
 
     @field_validator("new_password")
@@ -145,10 +150,14 @@ class PasswordResetConfirmRequest(BaseModel):
     def validate_new_password(cls, value):
         if len(value) < 8 or len(value) > 128:
             raise ValueError("Password must be between 8 and 128 characters")
+
         if not re.search(r"[A-Za-z]", value):
             raise ValueError("Password must contain a letter")
+
         if not re.search(r"\d", value):
             raise ValueError("Password must contain a number")
+
         if not re.search(r"[@$!%*?&]", value):
             raise ValueError("Password must contain a special character")
+
         return value
