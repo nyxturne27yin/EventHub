@@ -1,21 +1,36 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Discover University Events | EventHub</title>
-    <meta name="description" content="Discover university events, workshops, seminars, and student activities with EventHub.">
-    <meta name="theme-color" content="#f8fafc">
+
+    <meta
+        name="description"
+        content="Discover workshops, seminars, competitions and student activities with EventHub."
+    >
+    <meta name="theme-color" content="#fffdfb">
+
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
     >
+
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
-    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+
+    <!-- NAVIGATION -->
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="index.html">EventHub</a>
+
+            <a class="navbar-brand" href="index.html">
+                EventHub
+            </a>
+
             <button
                 class="navbar-toggler"
                 type="button"
@@ -27,80 +42,274 @@
             >
                 <span class="navbar-toggler-icon"></span>
             </button>
+
             <div class="collapse navbar-collapse" id="mainNavigation">
+
                 <ul class="navbar-nav ms-auto">
+
                     <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="index.html">Home</a>
+                        <a
+                            class="nav-link active"
+                            aria-current="page"
+                            href="index.html"
+                        >
+                            Home
+                        </a>
                     </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="#eventSearch">Events</a>
+                        <a class="nav-link" href="#eventSearch">
+                            Discover events
+                        </a>
                     </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="login.html">Log in</a>
+                        <a class="nav-link" href="login.html">
+                            Log in
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="register.html">Create account</a>
+
+                    <li class="nav-item ms-lg-2">
+                        <a
+                            class="btn btn-primary btn-sm"
+                            href="register.html"
+                        >
+                            Join EventHub
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="student-dashboard.html">Dashboard</a>
-                    </li>
+
                 </ul>
+
             </div>
         </div>
     </nav>
 
-    <main class="container py-5">
-        <section class="text-center mb-5">
-            <p class="text-uppercase small fw-semibold text-primary mb-2">Your campus, connected</p>
-            <h1 class="display-5 fw-bold">Find your next campus experience.</h1>
-            <p class="lead mx-auto" style="max-width: 44rem;">Discover workshops, seminars, competitions, and student activities—all in one place.</p>
-            <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
-                <a href="#eventSearch" class="btn btn-primary btn-lg">Explore events</a>
-                <a href="register.html" class="btn btn-outline-primary btn-lg">Join EventHub</a>
+    <main class="container">
+
+        <!-- HERO -->
+        <section class="home-hero">
+
+            <div class="home-hero-content">
+
+                <div class="home-eyebrow">
+                    Your campus, your community
+                </div>
+
+                <h1>
+                    Make room for
+                    <span>something</span>
+                    exciting.
+                </h1>
+
+                <p class="home-hero-description">
+                    From creative workshops to exciting competitions,
+                    discover the experiences, people and opportunities
+                    waiting for you on campus.
+                </p>
+
+                <div class="home-hero-actions">
+
+                    <a
+                        href="#eventSearch"
+                        class="btn btn-primary btn-lg"
+                    >
+                        Explore events <span aria-hidden="true">↗</span>
+                    </a>
+
+                    <a
+                        href="register.html"
+                        class="btn btn-outline-primary btn-lg"
+                    >
+                        Become a member
+                    </a>
+
+                </div>
+
+                <p class="home-hero-note">
+                    Discover something new. Meet your people. Make memories.
+                </p>
+
             </div>
+
+            <!-- Decorative visual collage -->
+            <div class="home-hero-art" aria-hidden="true">
+
+                <div class="hero-orbit"></div>
+
+                <div class="hero-art-card hero-art-card-one">
+
+                    <div>
+                        <div class="hero-art-icon">✳</div>
+                        <small>Get creative</small>
+                    </div>
+
+                    <div>
+                        <strong>Ideas become experiences.</strong>
+                        <p>Workshops · Creativity · Community</p>
+                    </div>
+
+                </div>
+
+                <div class="hero-art-card hero-art-card-two">
+
+                    <div>
+                        <div class="hero-art-icon">✦</div>
+                        <small>Find your people</small>
+                    </div>
+
+                    <div>
+                        <strong>Good things happen together.</strong>
+                        <p>Connect · Collaborate · Explore</p>
+                    </div>
+
+                </div>
+
+                <div class="hero-art-card hero-art-card-three">
+
+                    <div>
+                        <div class="hero-art-icon">↗</div>
+                        <small>Your next chapter</small>
+                    </div>
+
+                    <strong>Show up for something new.</strong>
+
+                </div>
+
+            </div>
+
         </section>
 
+        <!-- EVENT DISCOVERY -->
         <section id="eventSearch" aria-labelledby="eventSearchHeading">
-            <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-                <div><h2 id="eventSearchHeading" class="mb-1">Explore upcoming events</h2>
-                <p class="text-secondary mb-0">Search by title, description, or category.</p></div>
-                <a class="btn btn-outline-secondary btn-sm" href="student-dashboard.html">My dashboard</a>
+
+            <div class="home-section-heading">
+
+                <div>
+                    <p class="home-eyebrow mb-2">
+                        Find your next experience
+                    </p>
+
+                    <h2 id="eventSearchHeading">
+                        What's happening on campus?
+                    </h2>
+
+                    <p>
+                        Find events that match your interests and curiosity.
+                    </p>
+                </div>
+
+                <a
+                    class="btn btn-outline-secondary"
+                    href="student-dashboard.html"
+                >
+                    My dashboard ↗
+                </a>
+
             </div>
+
+            <!-- Search -->
             <form id="eventSearchForm" class="row g-2 mb-3">
+
                 <div class="col-12 col-md">
-                    <label for="eventSearchInput" class="visually-hidden">Search events</label>
+
+                    <label
+                        for="eventSearchInput"
+                        class="visually-hidden"
+                    >
+                        Search events
+                    </label>
+
                     <input
                         id="eventSearchInput"
                         class="form-control"
                         type="search"
-                        placeholder="Search by event name, description, or category"
+                        placeholder="Try searching for workshops, seminars..."
                         maxlength="100"
                     >
+
                 </div>
+
                 <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
-                    <button id="eventSearchSubmit" class="btn btn-primary" type="submit">Search</button>
+
+                    <button
+                        id="eventSearchSubmit"
+                        class="btn btn-primary"
+                        type="submit"
+                    >
+                        Search events
+                    </button>
+
                     <button
                         id="clearEventSearch"
                         class="btn btn-outline-secondary"
                         type="button"
-                    >Clear</button>
+                    >
+                        Clear
+                    </button>
+
                 </div>
+
             </form>
-            <p id="eventSearchLoading" class="d-none" role="status" aria-live="polite">Loading events…</p>
-            <p id="eventSearchSummary" class="small text-secondary d-none" aria-live="polite"></p>
+
+            <p
+                id="eventSearchLoading"
+                class="d-none"
+                role="status"
+                aria-live="polite"
+            >
+                Finding exciting events...
+            </p>
+
+            <p
+                id="eventSearchSummary"
+                class="small text-secondary d-none"
+                aria-live="polite"
+            ></p>
+
             <div class="d-flex justify-content-between align-items-center gap-2">
-                <p id="eventSearchError" class="alert alert-danger d-none flex-grow-1" role="alert"></p>
-                <button id="retryEventSearch" class="btn btn-outline-danger d-none" type="button">Retry</button>
+
+                <p
+                    id="eventSearchError"
+                    class="alert alert-danger d-none flex-grow-1"
+                    role="alert"
+                ></p>
+
+                <button
+                    id="retryEventSearch"
+                    class="btn btn-outline-danger d-none"
+                    type="button"
+                >
+                    Try again
+                </button>
+
             </div>
-            <p id="eventSearchEmpty" class="d-none" role="status">No upcoming events found. Please check again later.</p>
-            <div id="eventSearchResults" class="row g-3" aria-live="polite"></div>
+
+            <p
+                id="eventSearchEmpty"
+                class="d-none text-center py-4"
+                role="status"
+            >
+                No upcoming events found. Please check again later.
+            </p>
+
+            <!-- JavaScript inserts event cards here -->
+            <div
+                id="eventSearchResults"
+                class="row g-3"
+                aria-live="polite"
+            ></div>
+
         </section>
+
     </main>
 
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
     ></script>
+
     <script src="js/config.js"></script>
-<script src="js/events.js"></script>
+    <script src="js/events.js"></script>
+
+    <script src="js/navbar.js"></script>
 </body>
 </html>

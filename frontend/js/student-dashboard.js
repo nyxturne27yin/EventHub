@@ -1,4 +1,4 @@
-﻿
+
 "use strict";
 
 const DASHBOARD_API_URL = window.EVENTHUB_API_BASE_URL;
@@ -364,6 +364,15 @@ async function loadDashboardCertificates(headers) {
                 link.textContent = "Verify certificate";
 
                 body.appendChild(link);
+
+                const downloadLink = document.createElement("a");
+                downloadLink.className =
+                    "btn btn-sm btn-outline-success mt-2 ms-2";
+                downloadLink.href =
+                    `certificate-print.html?id=${encodeURIComponent(certificate.certificate_id)}`;
+                downloadLink.textContent = "Download / Print PDF";
+
+                body.appendChild(downloadLink);
             }
 
             card.appendChild(body);

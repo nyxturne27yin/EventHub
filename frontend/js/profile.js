@@ -1,4 +1,4 @@
-﻿
+
 const PROFILE_API_URL = window.EVENTHUB_API_BASE_URL;
 
 let organizerProfile = null;
@@ -55,6 +55,7 @@ async function loadProfile() {
             document.getElementById("profileRole").textContent = "organizer";
             document.getElementById("organizerProfileSection").classList.remove("d-none");
             document.getElementById("editProfileBtn").classList.add("d-none");
+            document.querySelector('.club-logo-manager')?.classList.add('d-none');
             document.getElementById("organizerProfileForm").classList.add("d-none");
             showOrganizerProfile(organizer);
             await loadOrganizerEvents(requestedOrganizerId, token);
@@ -126,6 +127,33 @@ function showOrganizerProfile(profile) {
 
     document.getElementById("contactPhoneDisplay").textContent =
         profile.contact_phone || "Not provided";
+
+    renderClubLogo(profile.logo_url);
+}
+
+function renderClubLogo(logoUrl) {
+    const preview = document.getElementById("clubLogoPreview");
+    const empty = document.getElementById("clubLogoEmpty");
+
+    if (!preview || !empty) return;
+
+    if (
+        typeof logoUrl === "string" &&
+        logoUrl.startsWith("/uploads/club-logos/")
+    ) {
+        preview.onerror = () => {
+            preview.classList.add("d-none");
+            empty.classList.remove("d-none");
+        };
+
+        preview.src = `${PROFILE_API_URL}${logoUrl}`;
+        preview.classList.remove("d-none");
+        empty.classList.add("d-none");
+    } else {
+        preview.removeAttribute("src");
+        preview.classList.add("d-none");
+        empty.classList.remove("d-none");
+    }
 }
 
 async function loadOrganizerEvents(organizerId, token, isOwnProfile = false) {
@@ -558,7 +586,13 @@ function renderStudentCertificates() {
         link.rel = "noopener noreferrer";
         link.textContent = "Verify Certificate";
 
-        body.append(title, event, category, issued, id, link);
+        const downloadLink = document.createElement("a");
+        downloadLink.className = "btn btn-outline-success btn-sm ms-2";
+        downloadLink.href =
+            `certificate-print.html?id=${encodeURIComponent(cert.certificate_id)}`;
+        downloadLink.textContent = "Download / Print PDF";
+
+        body.append(title, event, category, issued, id, link, downloadLink);
         card.appendChild(body);
         column.appendChild(card);
         list.appendChild(column);
@@ -580,3 +614,128 @@ document.querySelectorAll(".certificate-filter").forEach((button) => {
         renderStudentCertificates();
     });
 });
+
+// Club logo upload and removal
+function showClubLogoMessage(message, type = "success") {
+    const element = document.getElementById("clubLogoMessage");
+    if (!element) return;
+
+    element.textContent = message;
+    element.className = `small mt-2 mb-0 text-${type}`;
+}
+
+async function uploadClubLogo() {
+    const input = document.getElementById("clubLogoInput");
+    const button = document.getElementById("uploadClubLogoBtn");
+    const file = input?.files?.[0];
+
+    if (!file) {
+        showClubLogoMessage("Please choose an image first.", "danger");
+        return;
+    }
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        showClubLogoMessage("Choose a JPG, PNG, or WebP image.", "danger");
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        showClubLogoMessage("The image must be 5 MB or smaller.", "danger");
+        return;
+    }
+
+    const token = sessionStorage.getItem("access_token");
+
+    if (!token) {
+        showClubLogoMessage("Please log in again.", "danger");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    button.disabled = true;
+    button.textContent = "Uploading...";
+
+    try {
+        const response = await fetch(
+            `${PROFILE_API_URL}/organizer-profiles/me/logo`,
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            }
+        );
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Unable to upload the logo.");
+        }
+
+        if (organizerProfile) organizerProfile.logo_url = data.logo_url;
+
+        renderClubLogo(data.logo_url);
+        input.value = "";
+        showClubLogoMessage("Club logo uploaded successfully.", "success");
+    } catch (error) {
+        showClubLogoMessage(error.message, "danger");
+    } finally {
+        button.disabled = false;
+        button.textContent = "Upload logo";
+    }
+}
+
+async function removeClubLogo() {
+    const button = document.getElementById("removeClubLogoBtn");
+    const token = sessionStorage.getItem("access_token");
+
+    if (!token) {
+        showClubLogoMessage("Please log in again.", "danger");
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Removing...";
+
+    try {
+        const response = await fetch(
+            `${PROFILE_API_URL}/organizer-profiles/me/logo`,
+            {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        );
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok && response.status !== 404) {
+            throw new Error(data.detail || "Unable to remove the logo.");
+        }
+
+        if (organizerProfile) organizerProfile.logo_url = null;
+
+        renderClubLogo(null);
+
+        const input = document.getElementById("clubLogoInput");
+        if (input) input.value = "";
+
+        showClubLogoMessage(
+            response.status === 404
+                ? "There is no saved logo to remove."
+                : "Club logo removed successfully.",
+            "success"
+        );
+    } catch (error) {
+        showClubLogoMessage(error.message, "danger");
+    } finally {
+        button.disabled = false;
+        button.textContent = "Remove logo";
+    }
+}
+
+document.getElementById("uploadClubLogoBtn")
+    ?.addEventListener("click", uploadClubLogo);
+
+document.getElementById("removeClubLogoBtn")
+    ?.addEventListener("click", removeClubLogo);

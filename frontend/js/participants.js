@@ -114,6 +114,77 @@ async function loadParticipants() {
                 }
             });
 
+            // Certificate issuance is available only for active registrations.
+            if (participant.status === "Registered" && participant.participant_id) {
+                const certificateCategory = document.createElement("select");
+                certificateCategory.className = "form-select form-select-sm flex-grow-1";
+                certificateCategory.setAttribute("aria-label", "Certificate category");
+
+                ["Academic", "Research"].forEach(category => {
+                    const option = document.createElement("option");
+                    option.value = category;
+                    option.textContent = category;
+                    certificateCategory.appendChild(option);
+                });
+
+                const issueButton = document.createElement("button");
+                issueButton.type = "button";
+                issueButton.className = "btn btn-sm btn-success";
+                issueButton.textContent = "Issue Certificate";
+
+                issueButton.addEventListener("click", async () => {
+                    if (!window.confirm(
+                        `Issue a ${certificateCategory.value} certificate to ${participant.participant_name}?`
+                    )) {
+                        return;
+                    }
+
+                    issueButton.disabled = true;
+                    issueButton.textContent = "Issuing…";
+
+                    try {
+                        const issueResponse = await fetch(
+                            `${API_BASE_URL}/certificates/events/${eventId}/generate`,
+                            {
+                                method: "POST",
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    student_id: participant.participant_id,
+                                    category: certificateCategory.value
+                                })
+                            }
+                        );
+
+                        const issueResult = await issueResponse.json().catch(() => ({}));
+
+                        if (!issueResponse.ok) {
+                            throw new Error(
+                                issueResult.detail || "Could not issue certificate."
+                            );
+                        }
+
+                        issueButton.textContent = "Certificate Issued";
+                        issueButton.className = "btn btn-sm btn-outline-success";
+                        certificateCategory.disabled = true;
+
+                        error.textContent =
+                            `Certificate issued successfully to ${participant.participant_name}.`;
+                        error.className = "alert alert-success";
+                    } catch (issueError) {
+                        error.textContent =
+                            issueError.message || "Could not issue certificate.";
+                        error.className = "alert alert-danger";
+                        issueButton.disabled = false;
+                        issueButton.textContent = "Issue Certificate";
+                    }
+                });
+
+                controls.append(certificateCategory, issueButton);
+            }
+
             controls.append(select, button);
             item.append(details, controls);
             items.appendChild(item);

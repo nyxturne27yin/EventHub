@@ -12,6 +12,8 @@ UPLOAD_ROOT = Path(
 ).expanduser().resolve()
 EVENT_COVER_IMAGE_DIR = UPLOAD_ROOT / "event-covers"
 EVENT_COVER_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+CLUB_LOGO_IMAGE_DIR = UPLOAD_ROOT / "club-logos"
+CLUB_LOGO_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def resolve_event_cover_path(image_url: str | None) -> Path | None:
@@ -30,4 +32,27 @@ def resolve_event_cover_path(image_url: str | None) -> Path | None:
     candidate = (EVENT_COVER_IMAGE_DIR / filename).resolve()
     if candidate.parent != EVENT_COVER_IMAGE_DIR.resolve():
         return None
+    return candidate
+
+def resolve_club_logo_path(image_url: str | None) -> Path | None:
+    """Resolve only generated club-logo URLs inside the logo directory."""
+    if not image_url or not image_url.startswith("/uploads/club-logos/"):
+        return None
+
+    filename = image_url.removeprefix("/uploads/club-logos/")
+
+    if (
+        not filename
+        or filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+        or Path(filename).name != filename
+    ):
+        return None
+
+    candidate = (CLUB_LOGO_IMAGE_DIR / filename).resolve()
+
+    if candidate.parent != CLUB_LOGO_IMAGE_DIR.resolve():
+        return None
+
     return candidate

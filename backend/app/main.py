@@ -7,8 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
-
-from app.core.storage import EVENT_COVER_IMAGE_DIR
+from app.core.storage import (
+    CLUB_LOGO_IMAGE_DIR,
+    EVENT_COVER_IMAGE_DIR,
+)
 from app.database.database import engine
 from app.routers.health import router as health_router
 from app.auth.router import router as auth_router
@@ -73,4 +75,10 @@ app.mount(
     "/uploads/event-covers",
     StaticFiles(directory=EVENT_COVER_IMAGE_DIR),
     name="event-cover-images",
+)
+# Club logos are stored separately from event cover images.
+app.mount(
+    "/uploads/club-logos",
+    StaticFiles(directory=CLUB_LOGO_IMAGE_DIR),
+    name="club-logo-images",
 )
